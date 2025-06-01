@@ -1,6 +1,7 @@
 // =============================================
 //  js/player.js
 //  Código completo para reproducción de YouTube + cola + historial + cuñas dinámicas
+//  (Modificado para que durante la cuña el video se baje a 0% y la cuña permanezca a volumen 100%)
 // =============================================
 
 // ========================= 1) API KEY & VARIABLES =========================
@@ -38,13 +39,12 @@ async function loadCunas() {
   while (true) {
     const url = `assets/cunas/cuna${i}.mp3`;
     try {
-      // Hacemos un HEAD para sólo verificar existencia sin bajar todo el mp3.
       const resp = await fetch(url, { method: 'HEAD' });
-      if (!resp.ok) break; // Si no existe, salimos
+      if (!resp.ok) break;
       temp.push(url);
       i++;
     } catch (err) {
-      break; // En caso de error de red, salimos
+      break;
     }
   }
   cunas = temp;
@@ -691,31 +691,32 @@ function scheduleNextCuna() {
 
 function playCuna() {
   if (!isPlaying) return;
-  // Si cunas está vacío, no hacemos nada
   if (cunas.length === 0) {
     return;
   }
 
   statusDiv.textContent = '🔊 Reproduciendo cuña publicitaria…';
-  fadeVolume(player, 100, 50, 1000, () => {
-    // Elegir cuña al azar del array `cunas`
+
+  // Fade del video a 0% antes de iniciar la cuña
+  fadeVolume(player, 100, 0, 1000, () => {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
     cunaAudio = new Audio(cunaUrl);
-    cunaAudio.volume = 1.0;
+    cunaAudio.volume = 1.0; // Aseguramos que la cuña esté a 100%
     cunaAudio.play();
 
     stopCountdown();
 
     cunaAudio.addEventListener('ended', () => {
       if (!isPlaying) return;
-      fadeVolume(player, 50, 100, 1000, () => {
+      // Al terminar la cuña, restauramos el volumen del video a 100%
+      fadeVolume(player, 0, 100, 1000, () => {
         scheduleNextCuna();
       });
     });
     cunaAudio.addEventListener('error', () => {
       if (!isPlaying) return;
-      fadeVolume(player, 50, 100, 1000, () => {
+      fadeVolume(player, 0, 100, 1000, () => {
         scheduleNextCuna();
       });
     });
