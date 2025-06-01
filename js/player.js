@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startCountdown();
 });
 
+// Configuración de todos los event listeners que necesitamos
 function initEventListeners() {
   // ----------- Vista centrada: Botón “Buscar” ----------- 
   searchBtnCS.addEventListener('click', () => {
@@ -208,18 +209,21 @@ function initEventListeners() {
 }
 
 // ======================= 5) MANEJO DE BÚSQUEDAS =======================
+// Esta función se dispara cuando buscas desde el bloque centrado
 function doSearchFromCenter(query) {
-  // Ocultar vista centrada
+  // 1) Ocultar vista centrada
   hideCenteredSearch();
-  // Mostrar header y resultados (ocultando reproductor)
+  // 2) Mostrar header y resultados (ocultando reproductor)
   showHeader();
   hidePlayerWrapper();
   hideResults();
+  // 3) Actualizar estado y buscar en YouTube
   statusDiv.textContent = `🔍 Buscando "${query}"…`;
   showSearchingIndicator();
   searchOnYouTube(query);
 }
 
+// Esta función se dispara cuando buscas desde el header
 function doSearch(query) {
   hidePlayerWrapper();
   hideResults();
@@ -229,6 +233,7 @@ function doSearch(query) {
 }
 
 // ======================= 6) YouTube IFrame API =======================
+// Esta función la invoca la propia API de YouTube una vez que carga el <script>
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('youtubePlayer', {
     height: '360',
@@ -249,19 +254,20 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
+// Detecta cuando el video actual termina
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.ENDED) {
-    // Si hay siguiente en la cola
+    // Si todavía hay más en la cola, sigue con el siguiente
     if (isPlaying && queue.length > 0) {
       loadNextInQueue();
       return;
     }
-    // Si cola vacía pero sigue en modo “play”
+    // Si la cola se vacía pero seguimos en "play mode", hacemos autoplay related
     if (isPlaying && queue.length === 0 && lastVideoId) {
       fetchAndPlayRelated(lastVideoId);
       return;
     }
-    // Ya no hay nada
+    // Si ya no hay nada más, detenemos
     if (isPlaying && queue.length === 0 && !lastVideoId) {
       isPlaying = false;
       playQueueBtn.disabled = false;
@@ -364,7 +370,7 @@ function addToQueue(videoId, title) {
 
   if (queue.length === 1) {
     playQueueBtn.disabled = false;
-    // Si estamos todavía en la vista centrada, cambiar a header
+    // Si aún estamos en la vista centrada, cambiar a header
     hideCenteredSearch();
     showHeader();
   }
@@ -702,7 +708,7 @@ function fetchAndPlayRelated(videoId) {
     });
 }
 
-// ======================= 13) TEMPORIZADOR FLOTA. PARA CUÑAS =======================
+// ======================= 13) TEMPORIZADOR FLOTANTE =======================
 function startCountdown(duration = getRandomInterval()) {
   let remaining = Math.ceil(duration / 1000);
   timerDiv.style.display = 'block';
