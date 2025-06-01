@@ -701,9 +701,21 @@ function playCuna() {
   fadeVolume(player, 100, 0, 1000, () => {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
-    cunaAudio = new Audio(cunaUrl);
-    cunaAudio.volume = 2.0; // Aseguramos que la cuña esté a 100%
-    cunaAudio.play();
+// 1) Crear AudioContext y MediaElementSource a partir de la cuña
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+cunaAudio = new Audio(cunaUrl);
+const source = audioCtx.createMediaElementSource(cunaAudio);
+
+// 2) Crear un GainNode y fijar ganancia mayor a 1 (ej. 2 → 200%)
+const gainNode = audioCtx.createGain();
+gainNode.gain.value = 2;  // duplica el volumen de la cuña
+
+// 3) Conectar: source → gainNode → destino del AudioContext
+source.connect(gainNode);
+gainNode.connect(audioCtx.destination);
+
+// 4) Reproducir la cuña
+cunaAudio.play();
 
     stopCountdown();
 
