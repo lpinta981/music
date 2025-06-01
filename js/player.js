@@ -1,7 +1,7 @@
 // =============================================
 //  js/player.js
 //  Código completo para reproducción de YouTube + cola + historial + cuñas dinámicas
-//  Mejoras: eliminar ítems del historial y marcar elemento activo al reproducir desde historial
+//  Con mejoras para: eliminar ítems del historial y reproducir desde historial
 // =============================================
 
 // ========================= 1) API KEY & VARIABLES =========================
@@ -247,6 +247,7 @@ function doSearch(query) {
 // ======================= 7) YouTube IFrame API =======================
 // Esta función la invoca la propia API de YouTube una vez que carga el <script>
 function onYouTubeIframeAPIReady() {
+  console.log('>>> onYouTubeIframeAPIReady() – inicializando YT.Player');
   player = new YT.Player('youtubePlayer', {
     height: '360',
     width: '640',
@@ -262,6 +263,7 @@ function onYouTubeIframeAPIReady() {
     events: {
       onReady: () => {
         isPlayerReady = true;
+        console.log('>>> YT.Player.onReady – isPlayerReady = true');
         // Ejecutar todas las acciones pendientes
         while (pendingActions.length > 0) {
           const fn = pendingActions.shift();
@@ -441,7 +443,7 @@ function renderQueue() {
     const btnRemove = div.querySelector('.btn-remove');
     btnRemove.addEventListener('click', e => {
       e.stopPropagation();
-      removeFromQueue(index);
+      removeFromQueue(idxToRemove(index));
     });
 
     // Drag & Drop: inicio de arrastre
@@ -469,6 +471,11 @@ function renderQueue() {
 
     queueContainer.appendChild(div);
   });
+}
+
+// Como removeFromQueue recibe el índice actual de la lista, guardamos la posición real
+function idxToRemove(displayIndex) {
+  return displayIndex;
 }
 
 function removeFromQueue(idx) {
@@ -501,6 +508,7 @@ function playFromQueue(idx) {
   const { videoId, title } = queue[idx];
   const doIt = () => {
     document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
 
     isPlaying = true;
     lastVideoId = videoId;
@@ -608,9 +616,8 @@ function renderHistory() {
       <button class="history-remove-btn" title="Eliminar del historial">🗑</button>
     `;
 
-    // Al hacer clic en la tarjeta, reproducir desde historial
+    // Al hacer clic en la tarjeta (no en el botón), reproducir desde historial
     div.addEventListener('click', e => {
-      // Evitar que el clic en el botón de eliminar dispare reproducción
       if (e.target.classList.contains('history-remove-btn')) return;
       playFromHistory(idx);
     });
@@ -659,8 +666,9 @@ function playFromHistory(idx) {
     isPlaying = true;
     lastVideoId = videoId;
 
-    // Re-agregar al historial al tope
-    addToHistory(videoId, title);
+    // No llamar a addToHistory aquí (ya está en el historial); 
+    // si quisieras moverlo al tope, puedes, pero altera índices
+
     showPlayerWrapper();
     hideResults();
 
@@ -734,12 +742,13 @@ function playCuna() {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
 
-    // Crear AudioContext para aumentar volumen de la cuña si es necesario
+    // Crear AudioContext para asegurar volumen adecuado
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     cunaAudio = new Audio(cunaUrl);
     const source = audioCtx.createMediaElementSource(cunaAudio);
     const gainNode = audioCtx.createGain();
-    gainNode.gain.value = 1.0; // Mantiene volumen normal (o ampliar si se requiere)
+    gainNode.gain.value = 1.0; // Ajusta si necesitas más amplificación
+
     source.connect(gainNode);
     gainNode.connect(audioCtx.destination);
 
