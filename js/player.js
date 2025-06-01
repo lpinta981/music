@@ -3,42 +3,42 @@
 ///////////////////////////////////////
 // 1) Tu clave de YouTube Data API v3
 ///////////////////////////////////////
-// Reemplaza con la API Key que me diste:
 const YOUTUBE_API_KEY = 'AIzaSyCT6oq7Y-KcHEGLM4TusqoppYiGzxYgX9s';
 
 ///////////////////////////////////////
 // 2) Variables globales
 ///////////////////////////////////////
-let player;                // Instancia del YouTube Player
-let isPlaying = false;     // ¿Está reproduciendo la cola?
-let queue = [];            // Cola de reproducción: array de objetos { videoId, title }
-let randomTimerId = null;  // ID de setTimeout para cuñas
-let cunaAudio = null;      // <audio> para la cuña
+let player;                  // Instancia del reproductor de YouTube
+let isPlaying = false;       // ¿Está reproduciendo la cola (o autoplay)?
+let queue = [];              // Cola de reproducción: array de { videoId, title }
+let randomTimerId = null;    // ID de setTimeout para la siguiente cuña
+let cunaAudio = null;        // <audio> de la cuña que esté sonando
+let lastVideoId = null;      // <-- Guardo aquí el último video que se reprodujo
 
-// Lista de cuñas (asegúrate de subir estos .mp3 a assets/cunas/)
+// Lista de cuñas (asegúrate de subir estos mp3 en assets/cunas/)
 const cunas = [
   'assets/cunas/cuna1.mp3',
   'assets/cunas/cuna2.mp3',
   'assets/cunas/cuna3.mp3'
 ];
 
-// Intervalos (ms) – aleatorio entre 30 s y 5 min
-const MIN_INTERVAL = 30 * 1000;       // 30 segundos
+// Intervalos (ms) aleatorios entre 30 s y 5 min
+const MIN_INTERVAL = 30 * 1000;       //  30 segundos
 const MAX_INTERVAL = 5 * 60 * 1000;   // 300 segundos = 5 minutos
 
 ///////////////////////////////////////
-// 3) Esta función la llama YouTube IFrame API al cargar
+// 3) YouTube IFrame API invoca esta función
 ///////////////////////////////////////
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('youtube-player', {
     height: '315',
     width: '560',
-    videoId: '',  // Vacío al inicio; luego usaremos la cola
+    videoId: '',  // Al principio vacío; luego cargamos con cola o autoplay
     playerVars: {
       autoplay: 0,
-      controls: 1,
+      controls: 1,      // 1 para que se vean controles
       modestbranding: 1,
-      rel: 0,
+      rel: 1,           // IMPORTANTE: permite que relatedToVideoId funcione
       showinfo: 0
     },
     events: {
@@ -57,7 +57,7 @@ function onPlayerReady(event) {
   const searchBtn = document.getElementById('search-btn');
   const statusDiv = document.getElementById('status');
 
-  // Buscar en YouTube al hacer clic
+  // A) Botón “Buscar”
   searchBtn.addEventListener('click', () => {
     const query = document.getElementById('search-input').value.trim();
     if (!query) {
@@ -68,7 +68,7 @@ function onPlayerReady(event) {
     searchOnYouTube(query);
   });
 
-  // Iniciar reproducción de la cola
+  // B) Botón “Iniciar música”
   startBtn.addEventListener('click', () => {
     if (!isPlaying) {
       if (queue.length === 0) {
@@ -78,13 +78,13 @@ function onPlayerReady(event) {
       isPlaying = true;
       startBtn.disabled = true;
       stopBtn.disabled = false;
-      statusDiv.textContent = '▶️ Reproduciendo la cola…';
+      statusDiv.textContent = '▶️ Reproduciendo cola…';
       loadNextInQueue();  // Carga el primer video
-      scheduleNextCuna();  // Arranca las cuñas
+      scheduleNextCuna();  // Arranca las cuñas intercaladas
     }
   });
 
-  // Detener todo (video + cuñas)
+  // C) Botón “Detener todo”
   stopBtn.addEventListener('click', () => {
     if (isPlaying) {
       isPlaying = false;
@@ -102,9 +102,21 @@ function onPlayerReady(event) {
 // 5) Cuando cambia el estado del reproductor
 ///////////////////////////////////////
 function onPlayerStateChange(event) {
-  // Si el video actual finalizó, carga el siguiente en la cola
-  if (event.data === YT.PlayerState.ENDED && isPlaying) {
-    loadNextInQueue();
+  // Si el video actual finalizó:
+  if (event.data === YT.PlayerState.ENDED) {
+    // 1) Guardar el video que terminó (si aún no estaba en lastVideoId)
+    if (!lastVideoId) {
+      lastVideoId = player.getVideoData().video_id;
+    }
+    // 2) Si la cola NO está vacía, reproducir siguiente:
+    if (isPlaying && queue.length > 0) {
+      loadNextInQueue();
+    }
+    // 3) Si la cola está vacía pero seguimos en “play mode”, buscamos relacionado:
+    else if (isPlaying && queue.length === 0) {
+      fetchAndPlayRelated(lastVideoId);
+    }
+    // 4) Si no hay reproducción activa, no hacemos nada.
   }
 }
 
@@ -116,47 +128,47 @@ function searchOnYouTube(query) {
   const resultsDiv = document.getElementById('results');
   resultsDiv.innerHTML = ''; // Limpiar resultados previos
 
-  // Construir URL de la API de búsqueda
+  // Construir URL de búsqueda
   const encodedQuery = encodeURIComponent(query);
-  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet` +
-              `&type=video&maxResults=10&key=${YOUTUBE_API_KEY}` +
-              `&q=${encodedQuery}`;
+  const url =
+    'https://www.googleapis.com/youtube/v3/search' +
+    '?part=snippet' +
+    '&type=video' +
+    '&maxResults=10' +
+    `&key=${YOUTUBE_API_KEY}` +
+    `&q=${encodedQuery}`;
 
   fetch(url)
-    .then(response => {
-      if (!response.ok) throw new Error('Error en petición YouTube Data API');
+    .then((response) => {
+      if (!response.ok) throw new Error('Error en YouTube Data API');
       return response.json();
     })
-    .then(data => {
+    .then((data) => {
       if (!data.items || data.items.length === 0) {
         statusDiv.textContent = `❌ No se encontraron resultados para "${query}".`;
         return;
       }
-      statusDiv.textContent = `✅ Mostrando resultados para "${query}":`;
+      statusDiv.textContent = `✅ Resultados para "${query}":`;
 
-      data.items.forEach(item => {
-        const videoId   = item.id.videoId;
-        const title     = item.snippet.title;
+      data.items.forEach((item) => {
+        const videoId = item.id.videoId;
+        const title = item.snippet.title;
         const thumbnail = item.snippet.thumbnails.medium.url;
 
-        // Crear tarjeta de resultado
         const container = document.createElement('div');
         container.className = 'result-item';
-        container.dataset.videoId = videoId; // Guardar ID
-
+        container.dataset.videoId = videoId;
         container.innerHTML = `
           <img class="result-thumb" src="${thumbnail}" alt="Miniatura">
           <div class="result-title">${title}</div>
         `;
-        // Al hacer clic, lo agregamos a la cola
         container.addEventListener('click', () => {
           addToQueue(videoId, title);
         });
-
         resultsDiv.appendChild(container);
       });
     })
-    .catch(err => {
+    .catch((err) => {
       console.error(err);
       statusDiv.textContent = `⚠️ Error al buscar: ${err.message}`;
     });
@@ -170,7 +182,6 @@ function addToQueue(videoId, title) {
   updateQueueStatus();
 }
 
-// Actualizar texto en pantalla con cuántos quedan en cola
 function updateQueueStatus() {
   const statusDiv = document.getElementById('status');
   if (isPlaying) {
@@ -187,19 +198,19 @@ function loadNextInQueue() {
   const statusDiv = document.getElementById('status');
 
   if (queue.length === 0) {
-    // Si no hay más videos, detenemos todo
-    isPlaying = false;
-    player.stopVideo();
-    document.getElementById('start-btn').disabled = false;
-    document.getElementById('stop-btn').disabled = true;
-    statusDiv.textContent = '✅ La cola terminó. Agrega más videos o busca de nuevo.';
+    // Si ya no hay videos en la cola, hacer autoplay de relacionado:
+    fetchAndPlayRelated(lastVideoId);
     return;
   }
 
-  // Sacar el primer video y reproducirlo
+  // Sacamos el primer video
   const next = queue.shift();
   const { videoId, title } = next;
 
+  // Actualizamos lastVideoId para la próxima búsqueda de relacionado
+  lastVideoId = videoId;
+
+  // Cargamos y reproducimos
   player.loadVideoById(videoId);
   statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
 }
@@ -225,29 +236,83 @@ function playCuna() {
   if (!isPlaying) return;
   const statusDiv = document.getElementById('status');
 
-  // 1) Reducir volumen del video a 20
+  // Bajar volumen del video a 20
   player.setVolume(20);
   statusDiv.textContent = '🔊 Reproduciendo cuña publicitaria…';
 
-  // 2) Elegir cuña al azar
+  // Elegir cuña al azar
   const cunaUrl = cunas[Math.floor(Math.random() * cunas.length)];
   cunaAudio = new Audio(cunaUrl);
-  cunaAudio.volume = 1.0; // 100% para la cuña
+  cunaAudio.volume = 1.0; // 100% de la cuña
   cunaAudio.play();
 
-  // 3) Cuando la cuña termina, restaurar volumen y agendar siguiente
+  // Cuando la cuña termina, restaurar volumen y agendar siguiente
   cunaAudio.addEventListener('ended', () => {
     if (!isPlaying) return;
     player.setVolume(100);
-    updateQueueStatus(); // Mostrar cuántos videos quedan
+    updateQueueStatus();
     scheduleNextCuna();
   });
 
-  // 4) En caso de error, restaurar de inmediato
+  // En caso de error con la cuña, restaurar y continuar
   cunaAudio.addEventListener('error', () => {
     if (!isPlaying) return;
     player.setVolume(100);
     updateQueueStatus();
     scheduleNextCuna();
   });
+}
+
+///////////////////////////////////////
+// 10) Buscar y reproducir un video relacionado
+///////////////////////////////////////
+function fetchAndPlayRelated(videoId) {
+  const statusDiv = document.getElementById('status');
+  const url =
+    'https://www.googleapis.com/youtube/v3/search' +
+    '?part=snippet' +
+    '&type=video' +
+    '&maxResults=1' +
+    `&relatedToVideoId=${encodeURIComponent(videoId)}` +
+    `&key=${YOUTUBE_API_KEY}`;
+
+  statusDiv.textContent = '🔍 Buscando video relacionado…';
+
+  fetch(url)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('Error en YouTube Data API (related)');
+      }
+      return response.json();
+    })
+    .then((data) => {
+      if (
+        data.items &&
+        data.items.length > 0 &&
+        data.items[0].id.videoId
+      ) {
+        const newVideoId = data.items[0].id.videoId;
+        const newTitle = data.items[0].snippet.title || 'Video Relacionado';
+
+        // Actualizar lastVideoId y cargar el nuevo video
+        lastVideoId = newVideoId;
+        player.loadVideoById(newVideoId);
+
+        statusDiv.textContent = `▶️ Reproduciendo relacionado: ${newTitle}`;
+        // (La cola sigue vacía, pero el player tiene autoplay)
+      } else {
+        statusDiv.textContent =
+          '❌ No se encontró ningún video relacionado. Fin de reproducción.';
+        isPlaying = false;
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+      }
+    })
+    .catch((err) => {
+      console.error(err);
+      statusDiv.textContent = `⚠️ Error buscando relacionado: ${err.message}`;
+      isPlaying = false;
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('stop-btn').disabled = true;
+    });
 }
