@@ -236,7 +236,7 @@ function onYouTubeIframeAPIReady() {
     events: {
       onReady: () => {
         isPlayerReady = true;
-        // Ejecutar todas las acciones pendientes
+        // Ejecutar todas las acciones encoladas
         while (pendingActions.length > 0) {
           const fn = pendingActions.shift();
           fn();
@@ -246,6 +246,7 @@ function onYouTubeIframeAPIReady() {
     }
   });
 }
+
 
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.ENDED) {
@@ -509,39 +510,58 @@ function playFromQueue(idx) {
 }
 
 function loadNextInQueue() {
-  if (queue.length === 0) {
-    if (lastVideoId) {
-      fetchAndPlayRelated(lastVideoId);
-    } else {
-      isPlaying = false;
-      playQueueBtn.disabled = false;
-      stopBtn.disabled = true;
-      statusDiv.textContent = '✅ Cola vacía. Agrega nuevos videos.';
+  // Encolamos toda la lógica de reproducción en una función "doIt"
+  const doIt = () => {
+    // Si la cola está vacía, pasamos a reproducir el "related" o detenemos
+    if (queue.length === 0) {
+      if (lastVideoId) {
+        // Reproducimos un video relacionado
+        fetchAndPlayRelated(lastVideoId);
+      } else {
+        // Ya no hay nada en la cola ni un lastVideoId válido
+        isPlaying = false;
+        playQueueBtn.disabled = false;
+        stopBtn.disabled = true;
+        statusDiv.textContent = '✅ Cola vacía. Agrega nuevos videos.';
+      }
+      renderQueue();
+      return;
     }
+
+    // Sacamos el siguiente elemento de la cola
+    const next = queue.shift();
+    const { videoId, title } = next;
+    lastVideoId = videoId;
+
+    // Ahora sí podemos usar player, porque sabemos que estamos dentro de doIt (y éste
+    // sólo se ejecuta si isPlayerReady === true).
+    player.mute();
+    player.loadVideoById({ videoId, suggestedQuality: 'default' });
+    player.playVideo();
+
+    statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
+    setTimeout(() => {
+      player.unMute();
+      player.setVolume(100);
+    }, 200);
+
     renderQueue();
-    return;
+    playQueueBtn.disabled = true;
+    stopBtn.disabled = false;
+    addToHistory(videoId, title);
+
+    // Programamos la siguiente cuña publicitaria
+    scheduleNextCuna();
+  };
+
+  // Si el player aún no está listo, encolamos la acción. Si ya está listo, la ejecutamos.
+  if (!isPlayerReady) {
+    pendingActions.push(doIt);
+  } else {
+    doIt();
   }
-
-  const next = queue.shift();
-  const { videoId, title } = next;
-  lastVideoId = videoId;
-
-  player.mute();
-  player.loadVideoById({ videoId, suggestedQuality: 'default' });
-  player.playVideo();
-
-  statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
-  setTimeout(() => {
-    player.unMute();
-    player.setVolume(100);
-  }, 200);
-
-  renderQueue();
-  playQueueBtn.disabled = true;
-  stopBtn.disabled = false;
-  addToHistory(videoId, title);
-  scheduleNextCuna();
 }
+
 
 function reorderQueue(fromIdx, toIdx) {
   if (fromIdx === toIdx) return;
