@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Music + Cola Editable + Historial + Cuñas</title>
+  <title>MusicApp – Buscador, Cola, Historial y Cuñas</title>
 
   <!-- =============================== ESTILOS =============================== -->
   <style>
@@ -180,6 +180,7 @@
       background-color: #ffffff;
       padding: 12px 16px;
       border-bottom: 1px solid #ddd;
+      gap: 8px;
     }
     #searchInput {
       flex: 1;
@@ -188,8 +189,7 @@
       border: 1px solid #ccc;
       border-radius: 4px;
     }
-    #searchBtn, #clearResultsBtn, #toggleHistoryBtn {
-      margin-left: 8px;
+    #searchBtn, #toggleResultsBtn, #toggleHistoryBtn {
       padding: 8px 12px;
       background-color: #001f3f;
       color: white;
@@ -197,11 +197,10 @@
       font-size: 0.9rem;
       transition: background 0.2s;
     }
-    #searchBtn:hover, #clearResultsBtn:hover, #toggleHistoryBtn:hover {
+    #searchBtn:hover, #toggleResultsBtn:hover, #toggleHistoryBtn:hover {
       background-color: #003366;
     }
 
-    /* Indicador de “buscando” */
     #searchingIndicator {
       position: absolute;
       right: 16px;
@@ -252,9 +251,10 @@
       flex: 1;
       overflow-y: auto;
       padding: 12px;
-      display: grid;
+      display: none; /* Se mostrará al alternar resultados */
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
+      display: grid;
     }
     .result-item {
       position: relative;
@@ -264,6 +264,8 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.1);
       transition: transform 0.2s, box-shadow 0.2s;
       cursor: pointer;
+      display: flex;
+      flex-direction: column;
     }
     .result-item:hover {
       transform: translateY(-4px);
@@ -276,6 +278,10 @@
     }
     .result-info {
       padding: 8px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .result-title {
       font-size: 0.9rem;
@@ -288,7 +294,6 @@
     .result-add-btn {
       background-color: #ff5722;
       color: white;
-      border: none;
       border-radius: 50%;
       width: 32px;
       height: 32px;
@@ -343,27 +348,29 @@
     <div class="content">
       <!-- Cola de reproducción -->
       <div id="queue">
-        <div class="section-title">Cola de reproduc. <span id="queueCount">(0)</span></div>
-        <!-- Aquí se inyectan .queue-item -->
+        <div class="section-title">
+          Cola de reproduc. <span id="queueCount">(0)</span>
+        </div>
+        <!-- Aquí inyectamos .queue-item -->
       </div>
       <button id="playQueueBtn" disabled>▶️ Reproducir Cola</button>
 
-      <!-- Historial (desplegable) -->
+      <!-- Historial -->
       <div id="history">
         <div class="section-title">Historial (últimos 30)</div>
-        <!-- Aquí se inyectan .history-item -->
+        <!-- Aquí inyectamos .history-item -->
       </div>
     </div>
   </aside>
 
   <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
   <div id="main">
-    <!-- Header con buscador y toggle de historial -->
+    <!-- Header con buscador y toggles -->
     <div id="header">
       <button id="openSidebarBtn" title="Abrir menú">☰</button>
       <input type="text" id="searchInput" placeholder="Buscar en YouTube..." />
       <button id="searchBtn">Buscar</button>
-      <button id="clearResultsBtn">Limpiar Resultados</button>
+      <button id="toggleResultsBtn">Mostrar Resultados</button>
       <button id="toggleHistoryBtn" title="Mostrar/Ocultar historial">🕑 Historial</button>
       <div id="searchingIndicator">🔄 Buscando…</div>
     </div>
@@ -381,8 +388,10 @@
     <div id="results"></div>
   </div>
 
-  <!-- Temporizador flotante para próxima cuña -->
-  <div id="timer">Siguiente cuña en: <span id="timerCount">00:00</span></div>
+  <!-- Temporizador flotante -->
+  <div id="timer">
+    Siguiente cuña en: <span id="timerCount">00:00</span>
+  </div>
 </div>
 
 <!-- ==================== SCRIPTS ==================== -->
