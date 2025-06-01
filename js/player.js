@@ -1,5 +1,5 @@
 // ========================= 1) API KEY & VARIABLES =========================
-const YOUTUBE_API_KEY = 'TU_API_KEY_AQUÍ';
+const YOUTUBE_API_KEY = 'AIzaSyCT6oq7Y-KcHEGLM4TusqoppYiGzxYgX9s';
 
 let player = null;
 let isPlayerReady = false;
