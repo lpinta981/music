@@ -33,13 +33,14 @@ function onYouTubeIframeAPIReady() {
   player = new YT.Player('youtube-player', {
     height: '315',
     width: '560',
-    videoId: '',  // Al principio vacío; luego cargamos con cola o autoplay
+    videoId: '', 
     playerVars: {
-      autoplay: 0,
-      controls: 1,      // 1 para que se vean controles
+      autoplay: 0,        // empezamos sin autoplay, para que no suene al cargar la página
+      controls: 1,
       modestbranding: 1,
-      rel: 1,           // IMPORTANTE: permite que relatedToVideoId funcione
-      showinfo: 0
+      rel: 1,             // necesario para que relatedToVideoId funcione
+      origin: window.location.origin,
+      iv_load_policy: 3   // desactiva las tarjetas de video relacionadas de YouTube
     },
     events: {
       onReady: onPlayerReady,
@@ -198,21 +199,44 @@ function loadNextInQueue() {
   const statusDiv = document.getElementById('status');
 
   if (queue.length === 0) {
-    // Si ya no hay videos en la cola, hacer autoplay de relacionado:
+    // ------------- COLA VACÍA: hacemos autoplay de un video relacionado -------------
     fetchAndPlayRelated(lastVideoId);
     return;
   }
 
-  // Sacamos el primer video
+  // ------------- Hay videos en la cola: reproducir el siguiente -------------
   const next = queue.shift();
   const { videoId, title } = next;
 
-  // Actualizamos lastVideoId para la próxima búsqueda de relacionado
+  // Guardamos el ID que vamos a reproducir, para “related” futuro:
   lastVideoId = videoId;
 
-  // Cargamos y reproducimos
-  player.loadVideoById(videoId);
+  // 1) MUTE temporal para que el navegador permita el autoplay
+  player.mute();
+
+  // 2) Cargar el video y asegurar autoplay
+  player.loadVideoById({
+    videoId: videoId,
+    // Autoplay: si lo cargamos con loadVideoById + playVideo, nos aseguramos
+    // la continuidad, pero ponemos sugerencia aquí:
+    suggestedQuality: 'default'
+  });
+
+  // 3) Llamar a playVideo() justo después de loadVideoById
+  player.playVideo();
+
+  // 4) Mostramos estado y desmutear con un pequeño delay (200ms)
   statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
+
+  // 5) Después de un breve lapso (para forzar al navegador a darle “tiempo” a iniciar),
+  //    podemos restaurar el volumen completo:
+  setTimeout(() => {
+    player.unMute();
+    player.setVolume(100);
+  }, 200);
+
+  // 6) Programar la siguiente cuña como siempre:
+  scheduleNextCuna();
 }
 
 ///////////////////////////////////////
@@ -294,13 +318,34 @@ function fetchAndPlayRelated(videoId) {
         const newVideoId = data.items[0].id.videoId;
         const newTitle = data.items[0].snippet.title || 'Video Relacionado';
 
-        // Actualizar lastVideoId y cargar el nuevo video
+        // 1) Guardar ID para la siguiente búsqueda related
         lastVideoId = newVideoId;
-        player.loadVideoById(newVideoId);
+
+        // 2) MUTE para permitir autoplay
+        player.mute();
+
+        // 3) Cargar el video nuevo y reproducir
+        player.loadVideoById({
+          videoId: newVideoId,
+          suggestedQuality: 'default'
+        });
+        player.playVideo();
 
         statusDiv.textContent = `▶️ Reproduciendo relacionado: ${newTitle}`;
-        // (La cola sigue vacía, pero el player tiene autoplay)
+
+        // 4) Desmutear tras 200 ms
+        setTimeout(() => {
+          player.unMute();
+          player.setVolume(100);
+        }, 200);
+
+        // 5) (Opcional) Si quieres, podrías añadirlo a la cola:
+        // queue.push({ videoId: newVideoId, title: newTitle });
+
+        // 6) Programar la siguiente cuña
+        scheduleNextCuna();
       } else {
+        // Si no hay relacionado, paramos todo
         statusDiv.textContent =
           '❌ No se encontró ningún video relacionado. Fin de reproducción.';
         isPlaying = false;
@@ -316,3 +361,4 @@ function fetchAndPlayRelated(videoId) {
       document.getElementById('stop-btn').disabled = true;
     });
 }
+
