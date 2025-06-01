@@ -56,6 +56,7 @@
       background: transparent;
       color: white;
       font-size: 1.2rem;
+      visibility: hidden; /* No lo usamos por ahora */
     }
     #sidebar .content {
       flex: 1;
@@ -177,22 +178,23 @@
       justify-content: center;
       background-color: #f0f2f5;
       flex-direction: column;
+      padding: 20px;            /* Reducido para que no ocupe tanto */
     }
     #centeredSearch input {
-      width: 60%;
-      max-width: 400px;
-      padding: 10px 14px;
-      font-size: 1.1rem;
+      width: 80%;
+      max-width: 360px;
+      padding: 8px 12px;
+      font-size: 1rem;
       border: 1px solid #ccc;
       border-radius: 4px;
     }
     #centeredSearch button {
-      margin-top: 12px;
-      padding: 10px 16px;
+      margin-top: 10px;
+      padding: 8px 14px;
       background-color: #001f3f;
       color: white;
       border-radius: 4px;
-      font-size: 1rem;
+      font-size: 0.9rem;
       transition: background 0.2s;
     }
     #centeredSearch button:hover {
@@ -204,34 +206,33 @@
       display: none; /* Se mostrará cuando sea necesario */
       align-items: center;
       background-color: #ffffff;
-      padding: 12px 16px;
+      padding: 8px 12px;       /* Reducido para que no ocupe tanto espacio */
       border-bottom: 1px solid #ddd;
       gap: 8px;
     }
-    #searchInput {
+    #header input {
       flex: 1;
-      padding: 8px 12px;
-      font-size: 1rem;
+      padding: 6px 10px;
+      font-size: 0.95rem;
       border: 1px solid #ccc;
       border-radius: 4px;
     }
-    #searchBtn, #toggleResultsBtn, #toggleHistoryBtn {
-      padding: 8px 12px;
+    #header button {
+      padding: 6px 10px;
       background-color: #001f3f;
       color: white;
       border-radius: 4px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       transition: background 0.2s;
     }
-    #searchBtn:hover, #toggleResultsBtn:hover, #toggleHistoryBtn:hover {
+    #header button:hover {
       background-color: #003366;
     }
-
     #searchingIndicator {
       position: absolute;
       right: 16px;
       top: 14px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: #555;
       display: none;
     }
@@ -245,7 +246,7 @@
     }
     #youtubePlayer {
       width: 100%;
-      height: 360px;
+      height: 320px; /* Altura ligeramente menor */
     }
     #playerControls {
       display: flex;
@@ -253,10 +254,10 @@
       align-items: center;
       background-color: #ffffff;
       border-top: 1px solid #ddd;
-      padding: 8px 16px;
+      padding: 6px 12px; /* Ligeramente más compacto */
     }
     #status {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: #333;
     }
     #stopBtn {
@@ -264,7 +265,7 @@
       color: white;
       padding: 6px 10px;
       border-radius: 4px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       transition: background 0.2s;
     }
     #stopBtn:disabled {
@@ -299,37 +300,37 @@
     }
     .result-thumb {
       width: 100%;
-      height: 140px;
+      height: 120px; /* Altura un poco menor */
       object-fit: cover;
     }
     .result-info {
-      padding: 8px;
+      padding: 6px;
       flex: 1;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
     }
     .result-title {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       line-height: 1.2;
       height: 2.4em; /* mostrar max. 2 líneas */
       overflow: hidden;
       color: #333;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .result-add-btn {
       background-color: #ff5722;
       color: white;
       border-radius: 50%;
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.2rem;
+      font-size: 1rem;
       position: absolute;
-      top: 8px;
-      right: 8px;
+      top: 6px;
+      right: 6px;
       opacity: 0.9;
       transition: opacity 0.2s;
     }
@@ -340,23 +341,23 @@
     /* ---------------------- Temporizador flotante ---------------------- */
     #timer {
       position: fixed;
-      bottom: 24px;
-      right: 24px;
+      bottom: 20px;
+      right: 20px;
       background-color: rgba(0,31,63,0.9);
       color: white;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 1rem;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.9rem;
       z-index: 200;
       display: none;
     }
 
     /* ------------ Botón flotante de historial (para móviles) ------------ */
-    #toggleHistoryBtn {
+    #toggleHistoryBtnTop {
       display: none;
     }
     @media (max-width: 900px) {
-      #toggleHistoryBtn {
+      #toggleHistoryBtnTop {
         display: inline-block;
       }
     }
@@ -369,8 +370,7 @@
   <aside id="sidebar">
     <header>
       <span>Menú</span>
-      <!-- En esta versión el sidebar siempre está abierto; no tiene botón de cerrar -->
-      <button id="closeSidebarBtn" style="visibility:hidden;">✕</button>
+      <button id="closeSidebarBtn">✕</button>
     </header>
     <div class="content">
       <!-- Cola de reproducción -->
@@ -396,12 +396,12 @@
     <div id="centeredSearch">
       <input type="text" id="searchInput" placeholder="Buscar en YouTube..." />
       <button id="searchBtn">Buscar</button>
-      <div style="margin-top:8px;">
+      <div style="margin-top:10px;">
         <button id="toggleHistoryBtn">🕑 Historial</button>
       </div>
     </div>
 
-    <!-- Header con buscador y botones (se muestra tras la primera búsqueda o reproducción) -->
+    <!-- Header con buscador y toggles (aparece tras la primera búsqueda o reproducción) -->
     <div id="header">
       <input type="text" id="searchInputTop" placeholder="Buscar en YouTube..." />
       <button id="searchBtnTop">Buscar</button>
@@ -430,7 +430,9 @@
 </div>
 
 <!-- ==================== SCRIPTS ==================== -->
+<!-- 1) Carga la IFrame API de YouTube -->
 <script src="https://www.youtube.com/iframe_api"></script>
+<!-- 2) Después, carga tu código player.js -->
 <script src="js/player.js"></script>
 </body>
 </html>
