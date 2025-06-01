@@ -747,7 +747,7 @@ function playCuna() {
     cunaAudio = new Audio(cunaUrl);
     const source = audioCtx.createMediaElementSource(cunaAudio);
     const gainNode = audioCtx.createGain();
-    gainNode.gain.value = 1.0; // Ajusta si necesitas más amplificación
+    gainNode.gain.value = 3.0; // Ajusta si necesitas más amplificación
 
     source.connect(gainNode);
     gainNode.connect(audioCtx.destination);
