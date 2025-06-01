@@ -702,7 +702,7 @@ function playCuna() {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
     cunaAudio = new Audio(cunaUrl);
-    cunaAudio.volume = 1.0; // Aseguramos que la cuña esté a 100%
+    cunaAudio.volume = 2.0; // Aseguramos que la cuña esté a 100%
     cunaAudio.play();
 
     stopCountdown();
