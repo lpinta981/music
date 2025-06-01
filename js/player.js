@@ -3,7 +3,8 @@
 // ========================= 1) API KEY & VARIABLES =========================
 const YOUTUBE_API_KEY = 'AIzaSyCT6oq7Y-KcHEGLM4TusqoppYiGzxYgX9s';
 
-let player;                   // Instancia de YT.Player
+let player = null;            // Instancia de YT.Player
+let isPlayerReady = false;    // Se vuelve true en onPlayerReady
 let isPlaying = false;        // Indica si estamos reproduciendo cola/autoplay
 let queue = [];               // Cola: array de { videoId, title }
 let randomTimerId = null;     // ID de setTimeout para la próxima cuña
@@ -12,6 +13,9 @@ let lastVideoId = null;       // ID del último video reproducido (para Related)
 
 let historyList = [];         // Lista de últimos 30 reproducidos: { videoId, title, timestamp }
 
+// Leer dinámicamente cuántas cuñas tenemos
+// Nota: en JS puro no podemos listar directorios, así que asumimos que sabemos los nombres.
+// Si en el futuro añades más MP3, agrégalos también a este array:
 const cunas = [
   'assets/cunas/cuna1.mp3',
   'assets/cunas/cuna2.mp3',
@@ -23,10 +27,10 @@ const MIN_INTERVAL = 30 * 1000;
 const MAX_INTERVAL = 5 * 60 * 1000;
 
 // ======================= 2) Referencias al DOM =======================
-let sidebar, openSidebarBtn, closeSidebarBtn, toggleHistoryBtn;
-let queueContainer, queueCountSpan, playQueueBtn;
+let sidebar, queueContainer, queueCountSpan, playQueueBtn;
 let historyContainer;
-let searchInput, searchBtn, toggleResultsBtn, searchingIndicator;
+let centeredSearch, searchInputCS, searchBtnCS, toggleHistoryBtnCS;
+let header, searchInputTop, searchBtnTop, toggleResultsBtn, searchingIndicator, toggleHistoryBtnTop;
 let playerWrapper, statusDiv, stopBtn;
 let resultsDiv;
 let timerDiv, timerCountSpan;
@@ -34,23 +38,24 @@ let timerDiv, timerCountSpan;
 document.addEventListener('DOMContentLoaded', () => {
   // Sidebar
   sidebar            = document.getElementById('sidebar');
-  openSidebarBtn     = document.getElementById('openSidebarBtn');
-  closeSidebarBtn    = document.getElementById('closeSidebarBtn');
-  toggleHistoryBtn   = document.getElementById('toggleHistoryBtn');
-
-  // Cola
   queueContainer     = document.getElementById('queue');
   queueCountSpan     = document.getElementById('queueCount');
   playQueueBtn       = document.getElementById('playQueueBtn');
-
-  // Historial
   historyContainer   = document.getElementById('history');
 
-  // Búsqueda
-  searchInput        = document.getElementById('searchInput');
-  searchBtn          = document.getElementById('searchBtn');
+  // Vista centrada
+  centeredSearch     = document.getElementById('centeredSearch');
+  searchInputCS      = document.getElementById('searchInput');
+  searchBtnCS        = document.getElementById('searchBtn');
+  toggleHistoryBtnCS = document.getElementById('toggleHistoryBtn');
+
+  // Header superior
+  header             = document.getElementById('header');
+  searchInputTop     = document.getElementById('searchInputTop');
+  searchBtnTop       = document.getElementById('searchBtnTop');
   toggleResultsBtn   = document.getElementById('toggleResultsBtn');
   searchingIndicator = document.getElementById('searchingIndicator');
+  toggleHistoryBtnTop= document.getElementById('toggleHistoryBtnTop');
 
   // Player
   playerWrapper      = document.getElementById('playerWrapper');
@@ -64,51 +69,66 @@ document.addEventListener('DOMContentLoaded', () => {
   timerDiv           = document.getElementById('timer');
   timerCountSpan     = document.getElementById('timerCount');
 
-  // Inicializar interacciones y estado
   initEventListeners();
   loadHistoryFromCache();
   renderHistory();
   renderQueue();
-  startCountdown();  // El temporizador de cuñas arranca inmediatamente
+
+  // El temporizador de cuñas arranca inmediatamente al cargar la página
+  startCountdown();
 });
 
-// ======================= 3) Inicializar manejadores de eventos =======================
+// ======================= 3) Manejadores de eventos =======================
 function initEventListeners() {
-  // Abrir/cerrar sidebar
-  openSidebarBtn.addEventListener('click', () => {
-    sidebar.classList.remove('closed');
-  });
-  closeSidebarBtn.addEventListener('click', () => {
-    sidebar.classList.add('closed');
-  });
-
-  // Toggle historial (en móvil)
-  toggleHistoryBtn.addEventListener('click', () => {
-    historyContainer.parentElement.classList.toggle('closed');
-  });
-
-  // Botón “Buscar” y Enter en campo de búsqueda
-  searchBtn.addEventListener('click', () => {
-    const query = searchInput.value.trim();
+  // Vista centrada: Botón “Buscar”
+  searchBtnCS.addEventListener('click', () => {
+    const query = searchInputCS.value.trim();
     if (!query) {
       alert('Escribe algo para buscar en YouTube.');
       return;
     }
-    startSearch(query);
+    doSearchFromCenter(query);
   });
-  searchInput.addEventListener('keyup', e => {
+  searchInputCS.addEventListener('keyup', e => {
     if (e.key === 'Enter') {
-      searchBtn.click();
+      searchBtnCS.click();
     }
   });
 
-  // Botón “Mostrar Resultados”
+  // Vista centrada: Botón “Historial”
+  toggleHistoryBtnCS.addEventListener('click', () => {
+    historyContainer.parentElement.classList.toggle('closed');
+  });
+
+  // Header superior: Botón “Buscar”
+  searchBtnTop.addEventListener('click', () => {
+    const query = searchInputTop.value.trim();
+    if (!query) {
+      alert('Escribe algo para buscar en YouTube.');
+      return;
+    }
+    doSearch(query);
+  });
+  searchInputTop.addEventListener('keyup', e => {
+    if (e.key === 'Enter') {
+      searchBtnTop.click();
+    }
+  });
+
+  // Botón “Mostrar Resultados” (toggle)
   toggleResultsBtn.addEventListener('click', () => {
     if (resultsDiv.style.display === 'none' || resultsDiv.style.display === '') {
-      resultsDiv.style.display = 'grid';
+      showResults();
+      hidePlayerWrapper();
     } else {
-      resultsDiv.style.display = 'none';
+      hideResults();
+      if (isPlaying) showPlayerWrapper();
     }
+  });
+
+  // Botón “Historial” en header (móvil)
+  toggleHistoryBtnTop.addEventListener('click', () => {
+    historyContainer.parentElement.classList.toggle('closed');
   });
 
   // Botón “Reproducir Cola”
@@ -128,32 +148,39 @@ function initEventListeners() {
     if (isPlaying) {
       isPlaying = false;
       clearTimeout(randomTimerId);
-      if (cunaAudio) cunaAudio.pause();
-      player.stopVideo();
+      if (cunaAudio) {
+        cunaAudio.pause();
+        cunaAudio = null;
+      }
+      if (player && isPlayerReady) player.stopVideo();
       playQueueBtn.disabled = false;
       stopBtn.disabled = true;
       statusDiv.textContent = 'Estado: detenido';
-      // Desmarcar .active en cola si existiera
       document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
     }
   });
 }
 
-// ======================= 4) Mostrar/Ocultar elementos =======================
-function showPlayerWrapper() {
-  playerWrapper.style.display = 'block';
+// ======================= 4) Funciones de búsqueda =======================
+function doSearchFromCenter(query) {
+  // Ocultar vista centrada
+  centeredSearch.style.display = 'none';
+  // Mostrar header, resultados y ocultar reproductor
+  header.style.display = 'flex';
+  hidePlayerWrapper();
+  hideResults();
+  statusDiv.textContent = `🔍 Buscando "${query}"…`;
+  showSearchingIndicator();
+  searchOnYouTube(query);
 }
-function hidePlayerWrapper() {
-  playerWrapper.style.display = 'none';
+
+function doSearch(query) {
+  hidePlayerWrapper();
+  hideResults();
+  statusDiv.textContent = `🔍 Buscando "${query}"…`;
+  showSearchingIndicator();
+  searchOnYouTube(query);
 }
-function showResults() {
-  resultsDiv.style.display = 'grid';
-}
-function hideResults() {
-  resultsDiv.style.display = 'none';
-}
-// No ocultamos la reproducción si se esconde el playerWrapper, 
-// porque así mantenemos la música sonando.
 
 function showSearchingIndicator() {
   searchingIndicator.style.display = 'block';
@@ -162,15 +189,57 @@ function hideSearchingIndicator() {
   searchingIndicator.style.display = 'none';
 }
 
-// ======================= 5) Buscar videos en YouTube =======================
-function startSearch(query) {
-  hidePlayerWrapper();
-  hideResults();
-  statusDiv.textContent = `🔍 Buscando "${query}"…`;
-  showSearchingIndicator();
-  searchOnYouTube(query);
+function showResults() {
+  resultsDiv.style.display = 'grid';
+}
+function hideResults() {
+  resultsDiv.style.display = 'none';
 }
 
+// ======================= 5) YouTube IFrame API =======================
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('youtubePlayer', {
+    height: '360',
+    width: '640',
+    videoId: '',
+    playerVars: {
+      autoplay: 0,
+      controls: 1,
+      modestbranding: 1,
+      rel: 1,
+      origin: window.location.origin,
+      iv_load_policy: 3
+    },
+    events: {
+      onReady: () => { isPlayerReady = true; },
+      onStateChange: onPlayerStateChange
+    }
+  });
+}
+
+function onPlayerStateChange(event) {
+  if (event.data === YT.PlayerState.ENDED) {
+    // Si hay más en la cola, reproducir siguiente
+    if (isPlaying && queue.length > 0) {
+      loadNextInQueue();
+      return;
+    }
+    // Si cola vacía pero modo “play”, autoplay related
+    if (isPlaying && queue.length === 0 && lastVideoId) {
+      fetchAndPlayRelated(lastVideoId);
+      return;
+    }
+    // Si ya no hay nada
+    if (isPlaying && queue.length === 0 && !lastVideoId) {
+      isPlaying = false;
+      playQueueBtn.disabled = false;
+      stopBtn.disabled = true;
+      statusDiv.textContent = '✅ Cola vacía. Agrega nuevos videos.';
+    }
+  }
+}
+
+// ======================= 6) Función de búsqueda =======================
 function searchOnYouTube(query) {
   const encodedQuery = encodeURIComponent(query);
   const url =
@@ -216,7 +285,7 @@ function searchOnYouTube(query) {
           addToQueue(videoId, title);
         });
 
-        // Click sobre la card completa → vista previa (preview)
+        // Clic en tarjeta → vista previa (preview)
         card.addEventListener('click', () => {
           previewVideo(videoId, title);
         });
@@ -231,8 +300,12 @@ function searchOnYouTube(query) {
     });
 }
 
-// ======================= 6) Preview de un video =======================
+// ======================= 7) Preview de video =======================
 function previewVideo(videoId, title) {
+  if (!isPlayerReady) {
+    alert('El reproductor aún no está listo, inténtalo en unos segundos.');
+    return;
+  }
   showPlayerWrapper();
   player.mute();
   player.loadVideoById({ videoId, suggestedQuality: 'default' });
@@ -244,10 +317,10 @@ function previewVideo(videoId, title) {
 
   statusDiv.textContent = `🔎 Vista previa: ${title}`;
   stopBtn.disabled = false;
-  // No agregamos ni a la cola ni al historial en la vista previa
+  // NO se agrega al historial ni a la cola en preview
 }
 
-// ======================= 7) Manejo de la Cola =======================
+// ======================= 8) Manejo de la Cola =======================
 function addToQueue(videoId, title) {
   if (queue.some(item => item.videoId === videoId)) {
     alert('Este video ya está en la cola.');
@@ -259,14 +332,15 @@ function addToQueue(videoId, title) {
 
   if (queue.length === 1) {
     playQueueBtn.disabled = false;
+    // Si estamos en vista “centrada”, pasar a header
+    centeredSearch.style.display = 'none';
+    header.style.display = 'flex';
   }
 }
 
 function renderQueue() {
-  // Actualizar contador
   queueCountSpan.textContent = queue.length;
 
-  // Reconstruir todo el contenedor de cola
   queueContainer.innerHTML = `
     <div class="section-title">
       Cola de reproduc. <span id="queueCount">(${queue.length})</span>
@@ -290,7 +364,7 @@ function renderQueue() {
       </div>
     `;
 
-    // Click en entire queue-item → reproducir desde aquí
+    // Clic para reproducir desde la cola
     div.addEventListener('click', () => {
       playFromQueue(index);
     });
@@ -336,7 +410,7 @@ function removeFromQueue(idx) {
     playQueueBtn.disabled = true;
   }
   if (removed.videoId === lastVideoId) {
-    player.stopVideo();
+    if (player && isPlayerReady) player.stopVideo();
     isPlaying = false;
     stopBtn.disabled = true;
     playQueueBtn.disabled = false;
@@ -347,6 +421,10 @@ function removeFromQueue(idx) {
 
 function playFromQueue(idx) {
   const { videoId, title } = queue[idx];
+  if (!isPlayerReady) {
+    alert('El reproductor no está listo, inténtalo en unos segundos.');
+    return;
+  }
   document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
 
   isPlaying = true;
@@ -368,6 +446,8 @@ function playFromQueue(idx) {
   if (items[idx]) items[idx].classList.add('active');
 
   addToHistory(videoId, title);
+  showPlayerWrapper();
+  hideResults();
 }
 
 function loadNextInQueue() {
@@ -412,7 +492,7 @@ function reorderQueue(fromIdx, toIdx) {
   renderQueue();
 }
 
-// ======================= 8) Historial de últimos 30 videos =======================
+// ======================= 9) Historial =======================
 function addToHistory(videoId, title) {
   const timestamp = new Date().toLocaleTimeString();
   historyList = historyList.filter(item => item.videoId !== videoId);
@@ -441,6 +521,10 @@ function renderHistory() {
 
 function playFromHistory(idx) {
   const { videoId, title } = historyList[idx];
+  if (!isPlayerReady) {
+    alert('El reproductor no está listo, inténtalo en unos segundos.');
+    return;
+  }
   player.mute();
   player.loadVideoById({ videoId, suggestedQuality: 'default' });
   player.playVideo();
@@ -456,6 +540,8 @@ function playFromHistory(idx) {
   lastVideoId = videoId;
   addToHistory(videoId, title);
   scheduleNextCuna();
+  showPlayerWrapper();
+  hideResults();
 }
 
 function saveHistoryToCache() {
@@ -478,7 +564,7 @@ function loadHistoryFromCache() {
   }
 }
 
-// ======================= 9) Cuñas publicitarias =======================
+// ======================= 10) Cuñas publicitarias =======================
 function getRandomInterval() {
   return Math.floor(
     Math.random() * (MAX_INTERVAL - MIN_INTERVAL + 1)
@@ -487,8 +573,8 @@ function getRandomInterval() {
 
 let countdownInterval = null;
 function scheduleNextCuna() {
-  clearInterval(countdownInterval);
   stopCountdown();
+  clearTimeout(randomTimerId);
   if (!isPlaying) return;
 
   const intervalo = getRandomInterval();
@@ -501,29 +587,32 @@ function scheduleNextCuna() {
 function playCuna() {
   if (!isPlaying) return;
   statusDiv.textContent = '🔊 Reproduciendo cuña publicitaria…';
-  player.setVolume(20);
+  fadeVolume(player, 100, 50, 1000, () => {
+    // Elegir cuña al azar del array `cunas`
+    const index = Math.floor(Math.random() * cunas.length);
+    const cunaUrl = cunas[index];
+    cunaAudio = new Audio(cunaUrl);
+    cunaAudio.volume = 1.0;
+    cunaAudio.play();
 
-  // Elegir cuña al azar
-  const cunaUrl = cunas[Math.floor(Math.random() * cunas.length)];
-  cunaAudio = new Audio(cunaUrl);
-  cunaAudio.volume = 1.0;
-  cunaAudio.play();
+    stopCountdown();
 
-  stopCountdown();
-
-  cunaAudio.addEventListener('ended', () => {
-    if (!isPlaying) return;
-    player.setVolume(100);
-    scheduleNextCuna();
-  });
-  cunaAudio.addEventListener('error', () => {
-    if (!isPlaying) return;
-    player.setVolume(100);
-    scheduleNextCuna();
+    cunaAudio.addEventListener('ended', () => {
+      if (!isPlaying) return;
+      fadeVolume(player, 50, 100, 1000, () => {
+        scheduleNextCuna();
+      });
+    });
+    cunaAudio.addEventListener('error', () => {
+      if (!isPlaying) return;
+      fadeVolume(player, 50, 100, 1000, () => {
+        scheduleNextCuna();
+      });
+    });
   });
 }
 
-// ======================= 10) Autoplay “Related” =======================
+// ======================= 11) Autoplay “Related” =======================
 function fetchAndPlayRelated(videoId) {
   if (!videoId) {
     isPlaying = false;
@@ -547,7 +636,7 @@ function fetchAndPlayRelated(videoId) {
     .then(data => {
       if (data.items && data.items.length > 0 && data.items[0].id.videoId) {
         const newVideoId = data.items[0].id.videoId;
-        const newTitle = data.items[0].snippet.title || 'Video Relacionado';
+        const newTitle   = data.items[0].snippet.title || 'Video Relacionado';
 
         lastVideoId = newVideoId;
         player.mute();
@@ -581,7 +670,7 @@ function fetchAndPlayRelated(videoId) {
     });
 }
 
-// ======================= 11) Temporizador flotante para cuñas =======================
+// ======================= 12) Temporizador flotante para cuñas =======================
 function startCountdown(duration = getRandomInterval()) {
   let remaining = Math.ceil(duration / 1000);
   timerDiv.style.display = 'block';
@@ -610,4 +699,38 @@ function updateTimerText(seconds) {
 function stopCountdown() {
   clearInterval(countdownInterval);
   timerDiv.style.display = 'none';
+}
+
+// ======================= 13) Fade de volumen (para cuña) =======================
+/**
+ * fadeVolume(player, from, to, duration, callback)
+ *   - player: instancia de YT.Player
+ *   - from: volumen inicial (0-100)
+ *   - to: volumen final (0-100)
+ *   - duration: tiempo total del fade en ms
+ *   - callback: función a llamar cuando termine el fade
+ */
+function fadeVolume(player, from, to, duration, callback) {
+  if (!player || !isPlayerReady) {
+    if (typeof callback === 'function') callback();
+    return;
+  }
+  const stepTime = 100; // cada 100ms
+  const steps = Math.ceil(duration / stepTime);
+  const volStep = (to - from) / steps;
+  let currentVol = from;
+  player.setVolume(Math.round(currentVol));
+
+  let count = 0;
+  const interval = setInterval(() => {
+    count++;
+    currentVol += volStep;
+    if (count >= steps) {
+      clearInterval(interval);
+      player.setVolume(to);
+      if (typeof callback === 'function') callback();
+    } else {
+      player.setVolume(Math.round(currentVol));
+    }
+  }, stepTime);
 }
