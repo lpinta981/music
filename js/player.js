@@ -1,7 +1,7 @@
 // =============================================
 //  js/player.js
 //  Código completo para reproducción de YouTube + cola + historial + cuñas dinámicas
-//  (Modificado para que durante la cuña el video se baje a 0% y la cuña permanezca a volumen 100%)
+//  Mejoras: eliminar ítems del historial y marcar elemento activo al reproducir desde historial
 // =============================================
 
 // ========================= 1) API KEY & VARIABLES =========================
@@ -40,11 +40,11 @@ async function loadCunas() {
     const url = `assets/cunas/cuna${i}.mp3`;
     try {
       const resp = await fetch(url, { method: 'HEAD' });
-      if (!resp.ok) break;
+      if (!resp.ok) break; // Si no existe, salimos
       temp.push(url);
       i++;
     } catch (err) {
-      break;
+      break; // En caso de error de red, salimos
     }
   }
   cunas = temp;
@@ -217,6 +217,7 @@ function initEventListeners() {
       stopBtn.disabled = true;
       statusDiv.textContent = 'Estado: detenido';
       document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
       stopCountdown();
     }
   });
@@ -604,20 +605,49 @@ function renderHistory() {
     div.innerHTML = `
       <div class="history-details">${item.title}</div>
       <div class="history-time">${item.timestamp}</div>
+      <button class="history-remove-btn" title="Eliminar del historial">🗑</button>
     `;
-    div.addEventListener('click', () => {
+
+    // Al hacer clic en la tarjeta, reproducir desde historial
+    div.addEventListener('click', e => {
+      // Evitar que el clic en el botón de eliminar dispare reproducción
+      if (e.target.classList.contains('history-remove-btn')) return;
       playFromHistory(idx);
     });
+
+    // Botón “Eliminar del historial”
+    const btnRemove = div.querySelector('.history-remove-btn');
+    btnRemove.addEventListener('click', e => {
+      e.stopPropagation();
+      removeFromHistory(idx);
+    });
+
     historyContainer.appendChild(div);
   });
 }
 
+function removeFromHistory(idx) {
+  historyList.splice(idx, 1);
+  saveHistoryToCache();
+  renderHistory();
+}
+
 function playFromHistory(idx) {
   const { videoId, title } = historyList[idx];
+
   const doIt = () => {
+    // Limpiar clases 'active' tanto en cola como en historial
+    document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
+
+    // Marcar este ítem del historial como activo
+    const items = historyContainer.querySelectorAll('.history-item');
+    if (items[idx]) items[idx].classList.add('active');
+
     player.mute();
     player.loadVideoById({ videoId, suggestedQuality: 'default' });
     player.playVideo();
+
     setTimeout(() => {
       player.unMute();
       player.setVolume(100);
@@ -628,6 +658,8 @@ function playFromHistory(idx) {
     playQueueBtn.disabled = true;
     isPlaying = true;
     lastVideoId = videoId;
+
+    // Re-agregar al historial al tope
     addToHistory(videoId, title);
     showPlayerWrapper();
     hideResults();
@@ -701,22 +733,17 @@ function playCuna() {
   fadeVolume(player, 100, 0, 1000, () => {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
-// 1) Crear AudioContext y MediaElementSource a partir de la cuña
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-cunaAudio = new Audio(cunaUrl);
-const source = audioCtx.createMediaElementSource(cunaAudio);
 
-// 2) Crear un GainNode y fijar ganancia mayor a 1 (ej. 2 → 200%)
-const gainNode = audioCtx.createGain();
-gainNode.gain.value = 2.5;  // duplica el volumen de la cuña
+    // Crear AudioContext para aumentar volumen de la cuña si es necesario
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    cunaAudio = new Audio(cunaUrl);
+    const source = audioCtx.createMediaElementSource(cunaAudio);
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = 1.0; // Mantiene volumen normal (o ampliar si se requiere)
+    source.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
 
-// 3) Conectar: source → gainNode → destino del AudioContext
-source.connect(gainNode);
-gainNode.connect(audioCtx.destination);
-
-// 4) Reproducir la cuña
-cunaAudio.play();
-
+    cunaAudio.play();
     stopCountdown();
 
     cunaAudio.addEventListener('ended', () => {
