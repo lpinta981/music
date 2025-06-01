@@ -265,7 +265,7 @@ function onYouTubeIframeAPIReady() {
         isPlayerReady = true;
         console.log('>>> YT.Player.onReady – isPlayerReady = true');
         // Volumen por defecto a 75%
-        player.setVolume(75);
+        player.setVolume(62);
         // Ejecutar todas las acciones pendientes
         while (pendingActions.length > 0) {
           const fn = pendingActions.shift();
@@ -367,7 +367,7 @@ function previewVideo(videoId, title) {
     player.playVideo();
     setTimeout(() => {
       player.unMute();
-      player.setVolume(75); // Reanudar a 75%
+      player.setVolume(62); // Reanudar a 75%
     }, 200);
 
     statusDiv.textContent = `🔎 Vista previa: ${title}`;
@@ -515,7 +515,7 @@ function playFromQueue(idx) {
 
     setTimeout(() => {
       player.unMute();
-      player.setVolume(75); // Volumen por defecto 75%
+      player.setVolume(62); // Volumen por defecto 75%
     }, 200);
 
     statusDiv.textContent = `▶️ Reproduciendo: ${title}`;
@@ -567,7 +567,7 @@ function loadNextInQueue() {
     statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
     setTimeout(() => {
       player.unMute();
-      player.setVolume(75); // Al reanudar, 75%
+      player.setVolume(62); // Al reanudar, 75%
     }, 200);
 
     renderQueue();
@@ -654,7 +654,7 @@ function playFromHistory(idx) {
 
     setTimeout(() => {
       player.unMute();
-      player.setVolume(75); // Al reproducir desde historial, volumen 75%
+      player.setVolume(62); // Al reproducir desde historial, volumen 75%
     }, 200);
 
     statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
@@ -732,7 +732,7 @@ function playCuna() {
   statusDiv.textContent = '🔊 Reproduciendo cuña publicitaria…';
 
   // Fade del video a 13% antes de iniciar la cuña (desde 75% baja a 13%)
-  fadeVolume(player, 75, 13, 1000, () => {
+  fadeVolume(player, 62, 12, 1000, () => {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
 
@@ -752,13 +752,13 @@ function playCuna() {
     cunaAudio.addEventListener('ended', () => {
       if (!isPlaying) return;
       // Al terminar la cuña, restauramos el volumen del video a 75%
-      fadeVolume(player, 13, 75, 1000, () => {
+      fadeVolume(player, 12, 62, 1000, () => {
         scheduleNextCuna();
       });
     });
     cunaAudio.addEventListener('error', () => {
       if (!isPlaying) return;
-      fadeVolume(player, 13, 75, 1000, () => {
+      fadeVolume(player, 13, 62, 1000, () => {
         scheduleNextCuna();
       });
     });
@@ -803,7 +803,7 @@ function fetchAndPlayRelated(videoId) {
 
           setTimeout(() => {
             player.unMute();
-            player.setVolume(75); // Al reproducir related, volumen 75%
+            player.setVolume(62); // Al reproducir related, volumen 75%
           }, 200);
 
           addToHistory(newVideoId, newTitle);
