@@ -13,9 +13,7 @@ let lastVideoId = null;       // ID del último video reproducido (para Related)
 
 let historyList = [];         // Lista de últimos 30 reproducidos: { videoId, title, timestamp }
 
-// Leer dinámicamente cuántas cuñas tenemos
-// Nota: en JS puro no podemos listar directorios, así que asumimos que sabemos los nombres.
-// Si en el futuro añades más MP3, agrégalos también a este array:
+// Array de cuñas (añade aquí tantos MP3 como quieras)
 const cunas = [
   'assets/cunas/cuna1.mp3',
   'assets/cunas/cuna2.mp3',
@@ -26,18 +24,64 @@ const cunas = [
 const MIN_INTERVAL = 30 * 1000;
 const MAX_INTERVAL = 5 * 60 * 1000;
 
-// ======================= 2) Referencias al DOM =======================
-let sidebar, queueContainer, queueCountSpan, playQueueBtn;
+// ======================= 2) REFERENCIAS AL DOM =======================
+let queueContainer, queueCountSpan, playQueueBtn;
 let historyContainer;
+
 let centeredSearch, searchInputCS, searchBtnCS, toggleHistoryBtnCS;
 let header, searchInputTop, searchBtnTop, toggleResultsBtn, searchingIndicator, toggleHistoryBtnTop;
+
 let playerWrapper, statusDiv, stopBtn;
+
 let resultsDiv;
+
 let timerDiv, timerCountSpan;
 
+// ======================= 3) FUNCIONES SHOW/HIDE =======================
+// Mostrar el reproductor
+function showPlayerWrapper() {
+  if (playerWrapper) playerWrapper.style.display = 'block';
+}
+// Ocultar el reproductor (pero NO detener la reproducción)
+function hidePlayerWrapper() {
+  if (playerWrapper) playerWrapper.style.display = 'none';
+}
+// Mostrar resultados
+function showResults() {
+  if (resultsDiv) resultsDiv.style.display = 'grid';
+}
+// Ocultar resultados
+function hideResults() {
+  if (resultsDiv) resultsDiv.style.display = 'none';
+}
+// Mostrar indicador “Buscando…”
+function showSearchingIndicator() {
+  if (searchingIndicator) searchingIndicator.style.display = 'block';
+}
+// Ocultar indicador “Buscando…”
+function hideSearchingIndicator() {
+  if (searchingIndicator) searchingIndicator.style.display = 'none';
+}
+// Mostrar el buscador centrado
+function showCenteredSearch() {
+  if (centeredSearch) centeredSearch.style.display = 'flex';
+}
+// Ocultar el buscador centrado
+function hideCenteredSearch() {
+  if (centeredSearch) centeredSearch.style.display = 'none';
+}
+// Mostrar el header de búsqueda
+function showHeader() {
+  if (header) header.style.display = 'flex';
+}
+// Ocultar el header de búsqueda
+function hideHeader() {
+  if (header) header.style.display = 'none';
+}
+
+// ======================= 4) INICIALIZAR EVENT LISTENERS =======================
 document.addEventListener('DOMContentLoaded', () => {
   // Sidebar
-  sidebar            = document.getElementById('sidebar');
   queueContainer     = document.getElementById('queue');
   queueCountSpan     = document.getElementById('queueCount');
   playQueueBtn       = document.getElementById('playQueueBtn');
@@ -58,29 +102,33 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleHistoryBtnTop= document.getElementById('toggleHistoryBtnTop');
 
   // Player
-  playerWrapper      = document.getElementById('playerWrapper');
-  statusDiv          = document.getElementById('status');
-  stopBtn            = document.getElementById('stopBtn');
+  playerWrapper = document.getElementById('playerWrapper');
+  statusDiv     = document.getElementById('status');
+  stopBtn       = document.getElementById('stopBtn');
 
   // Resultados
-  resultsDiv         = document.getElementById('results');
+  resultsDiv    = document.getElementById('results');
 
   // Temporizador
-  timerDiv           = document.getElementById('timer');
-  timerCountSpan     = document.getElementById('timerCount');
+  timerDiv      = document.getElementById('timer');
+  timerCountSpan= document.getElementById('timerCount');
 
+  // Agregar listeners
   initEventListeners();
+
+  // Cargar historial de localStorage y renderizar
   loadHistoryFromCache();
   renderHistory();
+
+  // Renderizar cola (inicialmente vacía)
   renderQueue();
 
-  // El temporizador de cuñas arranca inmediatamente al cargar la página
+  // El temporizador de cuñas arranca inmediatamente
   startCountdown();
 });
 
-// ======================= 3) Manejadores de eventos =======================
 function initEventListeners() {
-  // Vista centrada: Botón “Buscar”
+  // ----------- Vista centrada: Botón “Buscar” ----------- 
   searchBtnCS.addEventListener('click', () => {
     const query = searchInputCS.value.trim();
     if (!query) {
@@ -89,18 +137,17 @@ function initEventListeners() {
     }
     doSearchFromCenter(query);
   });
+  // Buscar con Enter
   searchInputCS.addEventListener('keyup', e => {
-    if (e.key === 'Enter') {
-      searchBtnCS.click();
-    }
+    if (e.key === 'Enter') searchBtnCS.click();
   });
 
-  // Vista centrada: Botón “Historial”
+  // Vista centrada: Toggle Historial
   toggleHistoryBtnCS.addEventListener('click', () => {
     historyContainer.parentElement.classList.toggle('closed');
   });
 
-  // Header superior: Botón “Buscar”
+  // ----------- Header superior: Botón “Buscar” ----------- 
   searchBtnTop.addEventListener('click', () => {
     const query = searchInputTop.value.trim();
     if (!query) {
@@ -110,13 +157,12 @@ function initEventListeners() {
     doSearch(query);
   });
   searchInputTop.addEventListener('keyup', e => {
-    if (e.key === 'Enter') {
-      searchBtnTop.click();
-    }
+    if (e.key === 'Enter') searchBtnTop.click();
   });
 
-  // Botón “Mostrar Resultados” (toggle)
+  // ----------- Botón “Mostrar Resultados” ----------- 
   toggleResultsBtn.addEventListener('click', () => {
+    if (!resultsDiv) return;
     if (resultsDiv.style.display === 'none' || resultsDiv.style.display === '') {
       showResults();
       hidePlayerWrapper();
@@ -126,12 +172,12 @@ function initEventListeners() {
     }
   });
 
-  // Botón “Historial” en header (móvil)
+  // ----------- Botón “Historial” en header (móvil) ----------- 
   toggleHistoryBtnTop.addEventListener('click', () => {
     historyContainer.parentElement.classList.toggle('closed');
   });
 
-  // Botón “Reproducir Cola”
+  // ----------- Botón “Reproducir Cola” ----------- 
   playQueueBtn.addEventListener('click', () => {
     if (!isPlaying && queue.length > 0) {
       isPlaying = true;
@@ -143,7 +189,7 @@ function initEventListeners() {
     }
   });
 
-  // Botón “Detener Todo”
+  // ----------- Botón “Detener Todo” ----------- 
   stopBtn.addEventListener('click', () => {
     if (isPlaying) {
       isPlaying = false;
@@ -161,12 +207,12 @@ function initEventListeners() {
   });
 }
 
-// ======================= 4) Funciones de búsqueda =======================
+// ======================= 5) MANEJO DE BÚSQUEDAS =======================
 function doSearchFromCenter(query) {
   // Ocultar vista centrada
-  centeredSearch.style.display = 'none';
-  // Mostrar header, resultados y ocultar reproductor
-  header.style.display = 'flex';
+  hideCenteredSearch();
+  // Mostrar header y resultados (ocultando reproductor)
+  showHeader();
   hidePlayerWrapper();
   hideResults();
   statusDiv.textContent = `🔍 Buscando "${query}"…`;
@@ -182,21 +228,7 @@ function doSearch(query) {
   searchOnYouTube(query);
 }
 
-function showSearchingIndicator() {
-  searchingIndicator.style.display = 'block';
-}
-function hideSearchingIndicator() {
-  searchingIndicator.style.display = 'none';
-}
-
-function showResults() {
-  resultsDiv.style.display = 'grid';
-}
-function hideResults() {
-  resultsDiv.style.display = 'none';
-}
-
-// ======================= 5) YouTube IFrame API =======================
+// ======================= 6) YouTube IFrame API =======================
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('youtubePlayer', {
     height: '360',
@@ -219,17 +251,17 @@ function onYouTubeIframeAPIReady() {
 
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.ENDED) {
-    // Si hay más en la cola, reproducir siguiente
+    // Si hay siguiente en la cola
     if (isPlaying && queue.length > 0) {
       loadNextInQueue();
       return;
     }
-    // Si cola vacía pero modo “play”, autoplay related
+    // Si cola vacía pero sigue en modo “play”
     if (isPlaying && queue.length === 0 && lastVideoId) {
       fetchAndPlayRelated(lastVideoId);
       return;
     }
-    // Si ya no hay nada
+    // Ya no hay nada
     if (isPlaying && queue.length === 0 && !lastVideoId) {
       isPlaying = false;
       playQueueBtn.disabled = false;
@@ -239,7 +271,7 @@ function onPlayerStateChange(event) {
   }
 }
 
-// ======================= 6) Función de búsqueda =======================
+// ======================= 7) FUNCIONALIDAD DE BÚSQUEDA =======================
 function searchOnYouTube(query) {
   const encodedQuery = encodeURIComponent(query);
   const url =
@@ -300,7 +332,7 @@ function searchOnYouTube(query) {
     });
 }
 
-// ======================= 7) Preview de video =======================
+// ======================= 8) VISTA PREVIEW DE VIDEO =======================
 function previewVideo(videoId, title) {
   if (!isPlayerReady) {
     alert('El reproductor aún no está listo, inténtalo en unos segundos.');
@@ -317,10 +349,10 @@ function previewVideo(videoId, title) {
 
   statusDiv.textContent = `🔎 Vista previa: ${title}`;
   stopBtn.disabled = false;
-  // NO se agrega al historial ni a la cola en preview
+  // NO se agrega a la cola ni al historial en preview
 }
 
-// ======================= 8) Manejo de la Cola =======================
+// ======================= 9) GESTIÓN DE LA COLA =======================
 function addToQueue(videoId, title) {
   if (queue.some(item => item.videoId === videoId)) {
     alert('Este video ya está en la cola.');
@@ -332,9 +364,9 @@ function addToQueue(videoId, title) {
 
   if (queue.length === 1) {
     playQueueBtn.disabled = false;
-    // Si estamos en vista “centrada”, pasar a header
-    centeredSearch.style.display = 'none';
-    header.style.display = 'flex';
+    // Si estamos todavía en la vista centrada, cambiar a header
+    hideCenteredSearch();
+    showHeader();
   }
 }
 
@@ -364,7 +396,7 @@ function renderQueue() {
       </div>
     `;
 
-    // Clic para reproducir desde la cola
+    // Clic en el item para reproducir desde la cola
     div.addEventListener('click', () => {
       playFromQueue(index);
     });
@@ -376,7 +408,7 @@ function renderQueue() {
       removeFromQueue(index);
     });
 
-    // Drag & Drop
+    // Drag & Drop: inicio de arrastre
     div.addEventListener('dragstart', e => {
       div.classList.add('dragging');
       e.dataTransfer.setData('text/plain', index);
@@ -492,7 +524,7 @@ function reorderQueue(fromIdx, toIdx) {
   renderQueue();
 }
 
-// ======================= 9) Historial =======================
+// ======================= 10) HISTORIAL =======================
 function addToHistory(videoId, title) {
   const timestamp = new Date().toLocaleTimeString();
   historyList = historyList.filter(item => item.videoId !== videoId);
@@ -564,7 +596,7 @@ function loadHistoryFromCache() {
   }
 }
 
-// ======================= 10) Cuñas publicitarias =======================
+// ======================= 11) CUÑAS PUBLICITARIAS =======================
 function getRandomInterval() {
   return Math.floor(
     Math.random() * (MAX_INTERVAL - MIN_INTERVAL + 1)
@@ -612,7 +644,7 @@ function playCuna() {
   });
 }
 
-// ======================= 11) Autoplay “Related” =======================
+// ======================= 12) AUTOPLAY “RELATED” =======================
 function fetchAndPlayRelated(videoId) {
   if (!videoId) {
     isPlaying = false;
@@ -670,7 +702,7 @@ function fetchAndPlayRelated(videoId) {
     });
 }
 
-// ======================= 12) Temporizador flotante para cuñas =======================
+// ======================= 13) TEMPORIZADOR FLOTA. PARA CUÑAS =======================
 function startCountdown(duration = getRandomInterval()) {
   let remaining = Math.ceil(duration / 1000);
   timerDiv.style.display = 'block';
@@ -701,7 +733,7 @@ function stopCountdown() {
   timerDiv.style.display = 'none';
 }
 
-// ======================= 13) Fade de volumen (para cuña) =======================
+// ======================= 14) FADE DE VOLUMEN =======================
 /**
  * fadeVolume(player, from, to, duration, callback)
  *   - player: instancia de YT.Player
@@ -715,7 +747,7 @@ function fadeVolume(player, from, to, duration, callback) {
     if (typeof callback === 'function') callback();
     return;
   }
-  const stepTime = 100; // cada 100ms
+  const stepTime = 100; // cada 100 ms
   const steps = Math.ceil(duration / stepTime);
   const volStep = (to - from) / steps;
   let currentVol = from;
