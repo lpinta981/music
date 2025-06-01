@@ -1,7 +1,7 @@
 // =============================================
 //  js/player.js
 //  Código completo para reproducción de YouTube + cola + historial + cuñas dinámicas
-//  Con mejoras para: eliminar ítems del historial y reproducir desde historial
+//  Ajustes: volumen por defecto 75%, cuña reduce a 13% y gain 2.5
 // =============================================
 
 // ========================= 1) API KEY & VARIABLES =========================
@@ -264,6 +264,8 @@ function onYouTubeIframeAPIReady() {
       onReady: () => {
         isPlayerReady = true;
         console.log('>>> YT.Player.onReady – isPlayerReady = true');
+        // Volumen por defecto a 75%
+        player.setVolume(75);
         // Ejecutar todas las acciones pendientes
         while (pendingActions.length > 0) {
           const fn = pendingActions.shift();
@@ -365,7 +367,7 @@ function previewVideo(videoId, title) {
     player.playVideo();
     setTimeout(() => {
       player.unMute();
-      player.setVolume(100);
+      player.setVolume(75); // Reanudar a 75%
     }, 200);
 
     statusDiv.textContent = `🔎 Vista previa: ${title}`;
@@ -443,7 +445,7 @@ function renderQueue() {
     const btnRemove = div.querySelector('.btn-remove');
     btnRemove.addEventListener('click', e => {
       e.stopPropagation();
-      removeFromQueue(idxToRemove(index));
+      removeFromQueue(index);
     });
 
     // Drag & Drop: inicio de arrastre
@@ -471,11 +473,6 @@ function renderQueue() {
 
     queueContainer.appendChild(div);
   });
-}
-
-// Como removeFromQueue recibe el índice actual de la lista, guardamos la posición real
-function idxToRemove(displayIndex) {
-  return displayIndex;
 }
 
 function removeFromQueue(idx) {
@@ -518,7 +515,7 @@ function playFromQueue(idx) {
 
     setTimeout(() => {
       player.unMute();
-      player.setVolume(100);
+      player.setVolume(75); // Volumen por defecto 75%
     }, 200);
 
     statusDiv.textContent = `▶️ Reproduciendo: ${title}`;
@@ -570,7 +567,7 @@ function loadNextInQueue() {
     statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
     setTimeout(() => {
       player.unMute();
-      player.setVolume(100);
+      player.setVolume(75); // Al reanudar, 75%
     }, 200);
 
     renderQueue();
@@ -657,7 +654,7 @@ function playFromHistory(idx) {
 
     setTimeout(() => {
       player.unMute();
-      player.setVolume(100);
+      player.setVolume(75); // Al reproducir desde historial, volumen 75%
     }, 200);
 
     statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
@@ -665,9 +662,6 @@ function playFromHistory(idx) {
     playQueueBtn.disabled = true;
     isPlaying = true;
     lastVideoId = videoId;
-
-    // No llamar a addToHistory aquí (ya está en el historial); 
-    // si quisieras moverlo al tope, puedes, pero altera índices
 
     showPlayerWrapper();
     hideResults();
@@ -737,17 +731,17 @@ function playCuna() {
 
   statusDiv.textContent = '🔊 Reproduciendo cuña publicitaria…';
 
-  // Fade del video a 0% antes de iniciar la cuña
-  fadeVolume(player, 100, 0, 1000, () => {
+  // Fade del video a 13% antes de iniciar la cuña (desde 75% baja a 13%)
+  fadeVolume(player, 75, 13, 1000, () => {
     const index = Math.floor(Math.random() * cunas.length);
     const cunaUrl = cunas[index];
 
-    // Crear AudioContext para asegurar volumen adecuado
+    // Crear AudioContext para aumento de volumen de la cuña
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     cunaAudio = new Audio(cunaUrl);
     const source = audioCtx.createMediaElementSource(cunaAudio);
     const gainNode = audioCtx.createGain();
-    gainNode.gain.value = 3.0; // Ajusta si necesitas más amplificación
+    gainNode.gain.value = 2.5; // Ganancia de 2.5 para mayor volumen
 
     source.connect(gainNode);
     gainNode.connect(audioCtx.destination);
@@ -757,14 +751,14 @@ function playCuna() {
 
     cunaAudio.addEventListener('ended', () => {
       if (!isPlaying) return;
-      // Al terminar la cuña, restauramos el volumen del video a 100%
-      fadeVolume(player, 0, 100, 1000, () => {
+      // Al terminar la cuña, restauramos el volumen del video a 75%
+      fadeVolume(player, 13, 75, 1000, () => {
         scheduleNextCuna();
       });
     });
     cunaAudio.addEventListener('error', () => {
       if (!isPlaying) return;
-      fadeVolume(player, 0, 100, 1000, () => {
+      fadeVolume(player, 13, 75, 1000, () => {
         scheduleNextCuna();
       });
     });
@@ -809,7 +803,7 @@ function fetchAndPlayRelated(videoId) {
 
           setTimeout(() => {
             player.unMute();
-            player.setVolume(100);
+            player.setVolume(75); // Al reproducir related, volumen 75%
           }, 200);
 
           addToHistory(newVideoId, newTitle);
