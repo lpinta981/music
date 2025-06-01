@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Música + Cuñas Publicitarias</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      justify-content: center;
+      align-items: center;
+      background: #f5f5f5;
+    }
+    #player-container {
+      width: 560px;
+      /* Mantiene proporción 16:9 */
+      aspect-ratio: 16 / 9;
+      margin-bottom: 20px;
+      background: #000;
+    }
+    #controls {
+      margin-top: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="player-container">
+    <!-- Aquí la API inyectará el <iframe> de YouTube -->
+    <div id="youtube-player"></div>
+  </div>
+
+  <div id="controls">
+    <button id="start-btn">Iniciar música</button>
+    <button id="stop-btn" disabled>Detener todo</button>
+  </div>
+
+  <div id="status">Estado: detenido</div>
+
+  <!-- 1) Se carga la YouTube IFrame Player API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <!-- 2) Nuestro código JavaScript -->
+  <script src="js/player.js"></script>
+
+</body>
+</html>
