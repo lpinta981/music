@@ -40,25 +40,13 @@ async function loadCunas() {
     try {
       // Hacemos un HEAD para sólo verificar existencia sin bajar todo el mp3.
       const resp = await fetch(url, { method: 'HEAD' });
-      if (!resp.ok) {
-        // Si el servidor responde 404 (o cualquier status != 200), detenemos el loop
-        break;
-      }
-      // Si resp.ok (200), añadimos la URL al arreglo temporal
+      if (!resp.ok) break; // Si no existe, salimos
       temp.push(url);
       i++;
     } catch (err) {
-      // En caso de error de red o similar, salimos del loop.
-      console.warn(`Error comprobando ${url}:`, err);
-      break;
+      break; // En caso de error de red, salimos
     }
   }
-
-  if (temp.length === 0) {
-    console.warn('No se encontraron cuñas en assets/cunas/ (patrón cunaX.mp3).');
-  }
-
-  // Copiamos “temp” a la variable global `cunas`
   cunas = temp;
 }
 
@@ -70,9 +58,7 @@ let centeredSearch, searchInputCS, searchBtnCS, toggleHistoryBtnCS;
 let header, searchInputTop, searchBtnTop, toggleResultsBtn, searchingIndicator, toggleHistoryBtnTop;
 
 let playerWrapper, statusDiv, stopBtn;
-
 let resultsDiv;
-
 let timerDiv, timerCountSpan;
 
 // ======================= 4) FUNCIONES SHOW/HIDE =======================
@@ -159,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function initEventListeners() {
-  // ----------- Vista centrada: Botón “Buscar” ----------- 
+  // Vista centrada: Botón “Buscar”
   searchBtnCS.addEventListener('click', () => {
     const query = searchInputCS.value.trim();
     if (!query) {
@@ -168,17 +154,14 @@ function initEventListeners() {
     }
     doSearchFromCenter(query);
   });
-  // Buscar con Enter
   searchInputCS.addEventListener('keyup', e => {
     if (e.key === 'Enter') searchBtnCS.click();
   });
-
-  // Vista centrada: Toggle Historial
   toggleHistoryBtnCS.addEventListener('click', () => {
     historyContainer.parentElement.classList.toggle('closed');
   });
 
-  // ----------- Header superior: Botón “Buscar” ----------- 
+  // Header superior: Botón “Buscar”
   searchBtnTop.addEventListener('click', () => {
     const query = searchInputTop.value.trim();
     if (!query) {
@@ -191,7 +174,7 @@ function initEventListeners() {
     if (e.key === 'Enter') searchBtnTop.click();
   });
 
-  // ----------- Botón “Mostrar Resultados” ----------- 
+  // Botón “Mostrar Resultados”
   toggleResultsBtn.addEventListener('click', () => {
     if (!resultsDiv) return;
     if (resultsDiv.style.display === 'none' || resultsDiv.style.display === '') {
@@ -203,12 +186,12 @@ function initEventListeners() {
     }
   });
 
-  // ----------- Botón “Historial” en header (móvil) ----------- 
+  // Botón “Historial” en header (móvil)
   toggleHistoryBtnTop.addEventListener('click', () => {
     historyContainer.parentElement.classList.toggle('closed');
   });
 
-  // ----------- Botón “Reproducir Cola” ----------- 
+  // Botón “Reproducir Cola”
   playQueueBtn.addEventListener('click', () => {
     if (!isPlaying && queue.length > 0) {
       isPlaying = true;
@@ -220,7 +203,7 @@ function initEventListeners() {
     }
   });
 
-  // ----------- Botón “Detener Todo” ----------- 
+  // Botón “Detener Todo”
   stopBtn.addEventListener('click', () => {
     if (isPlaying) {
       isPlaying = false;
@@ -240,21 +223,18 @@ function initEventListeners() {
 }
 
 // ======================= 6) MANEJO DE BÚSQUEDAS =======================
-// Esta función se dispara cuando buscas desde el bloque centrado
+// Función para buscar desde la vista centrada
 function doSearchFromCenter(query) {
-  // 1) Ocultar vista centrada
   hideCenteredSearch();
-  // 2) Mostrar header y resultados (ocultando reproductor)
   showHeader();
   hidePlayerWrapper();
   hideResults();
-  // 3) Actualizar estado y buscar en YouTube
   statusDiv.textContent = `🔍 Buscando "${query}"…`;
   showSearchingIndicator();
   searchOnYouTube(query);
 }
 
-// Esta función se dispara cuando buscas desde el header
+// Función para buscar desde el header
 function doSearch(query) {
   hidePlayerWrapper();
   hideResults();
@@ -295,17 +275,14 @@ function onYouTubeIframeAPIReady() {
 // Detecta cuando el video actual termina
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.ENDED) {
-    // Si todavía hay más en la cola, sigue con el siguiente
     if (isPlaying && queue.length > 0) {
       loadNextInQueue();
       return;
     }
-    // Si la cola se vacía pero seguimos en "play mode", hacemos autoplay related
     if (isPlaying && queue.length === 0 && lastVideoId) {
       fetchAndPlayRelated(lastVideoId);
       return;
     }
-    // Si ya no hay nada más, detenemos
     if (isPlaying && queue.length === 0 && !lastVideoId) {
       isPlaying = false;
       playQueueBtn.disabled = false;
@@ -315,7 +292,7 @@ function onPlayerStateChange(event) {
   }
 }
 
-// ======================= 8) FUNCIONALIDAD DE BÚSQUEDA =======================
+// ======================= 8) BÚSQUEDA EN YOUTUBE =======================
 function searchOnYouTube(query) {
   const encodedQuery = encodeURIComponent(query);
   const url =
@@ -390,13 +367,12 @@ function previewVideo(videoId, title) {
 
     statusDiv.textContent = `🔎 Vista previa: ${title}`;
     stopBtn.disabled = false;
-    // Programar cuña (porque ahora queremos que las cuñas también se reproduzcan en preview)
+    // Programar cuña
     scheduleNextCuna();
     // NO se agrega a la cola ni al historial en preview
   };
 
   if (!isPlayerReady) {
-    // En lugar de alert, dejamos la solicitud en la cola
     pendingActions.push(doIt);
   } else {
     doIt();
@@ -413,11 +389,10 @@ function addToQueue(videoId, title) {
   renderQueue();
   statusDiv.textContent = `📝 Video agregado a la cola: "${title}".`;
 
-  // 1) Marcar con borde verde en la tarjeta de resultados
+  // Marcar con borde verde en la tarjeta de resultados
   const card = resultsDiv.querySelector(`.result-item[data-videoid="${videoId}"]`);
   if (card) {
     card.classList.add('in-queue');
-    // Deshabilitar el botón “+” y cambiar su aspecto
     const btnAdd = card.querySelector('.result-add-btn');
     btnAdd.disabled = true;
     btnAdd.style.opacity = '0.5';
@@ -425,7 +400,6 @@ function addToQueue(videoId, title) {
 
   if (queue.length === 1) {
     playQueueBtn.disabled = false;
-    // Si aún estamos en la vista centrada, cambiar a header
     hideCenteredSearch();
     showHeader();
   }
@@ -503,7 +477,7 @@ function removeFromQueue(idx) {
     playQueueBtn.disabled = true;
   }
 
-  // 2) Quitar la clase “in-queue” de la tarjeta de resultados, si existe.
+  // Quitar borde verde de la tarjeta de resultados
   const card = resultsDiv.querySelector(`.result-item[data-videoid="${removed.videoId}"]`);
   if (card) {
     card.classList.remove('in-queue');
@@ -560,7 +534,7 @@ function playFromQueue(idx) {
   }
 }
 
-// Aquí es donde hacemos la corrección para que NO intente usar player si aún no existe:
+// loadNextInQueue espera a que el player esté listo antes de ejecutar
 function loadNextInQueue() {
   const doIt = () => {
     if (queue.length === 0) {
@@ -580,7 +554,6 @@ function loadNextInQueue() {
     const { videoId, title } = next;
     lastVideoId = videoId;
 
-    // Ahora sí el player ya existe porque estamos dentro de “doIt”
     player.mute();
     player.loadVideoById({ videoId, suggestedQuality: 'default' });
     player.playVideo();
