@@ -1,4 +1,6 @@
-// js/player.js
+// =============================================
+//  js/player.js  (modificado con las tres mejoras)
+// =============================================
 
 // ========================= 1) API KEY & VARIABLES =========================
 const YOUTUBE_API_KEY = 'AIzaSyCT6oq7Y-KcHEGLM4TusqoppYiGzxYgX9s';
@@ -12,6 +14,9 @@ let cunaAudio = null;         // Elemento <audio> de la cuña
 let lastVideoId = null;       // ID del último video reproducido (para Related)
 
 let historyList = [];         // Lista de últimos 30 reproducidos: { videoId, title, timestamp }
+
+// Cola para acciones pendientes de reproducción
+const pendingActions = [];
 
 // Array de cuñas (añade aquí tantos MP3 como quieras)
 const cunas = [
@@ -38,43 +43,33 @@ let resultsDiv;
 let timerDiv, timerCountSpan;
 
 // ======================= 3) FUNCIONES SHOW/HIDE =======================
-// Mostrar el reproductor
 function showPlayerWrapper() {
   if (playerWrapper) playerWrapper.style.display = 'block';
 }
-// Ocultar el reproductor (pero NO detener la reproducción)
 function hidePlayerWrapper() {
   if (playerWrapper) playerWrapper.style.display = 'none';
 }
-// Mostrar resultados
 function showResults() {
   if (resultsDiv) resultsDiv.style.display = 'grid';
 }
-// Ocultar resultados
 function hideResults() {
   if (resultsDiv) resultsDiv.style.display = 'none';
 }
-// Mostrar indicador “Buscando…”
 function showSearchingIndicator() {
   if (searchingIndicator) searchingIndicator.style.display = 'block';
 }
-// Ocultar indicador “Buscando…”
 function hideSearchingIndicator() {
   if (searchingIndicator) searchingIndicator.style.display = 'none';
 }
-// Mostrar el buscador centrado
 function showCenteredSearch() {
   if (centeredSearch) centeredSearch.style.display = 'flex';
 }
-// Ocultar el buscador centrado
 function hideCenteredSearch() {
   if (centeredSearch) centeredSearch.style.display = 'none';
 }
-// Mostrar el header de búsqueda
 function showHeader() {
   if (header) header.style.display = 'flex';
 }
-// Ocultar el header de búsqueda
 function hideHeader() {
   if (header) header.style.display = 'none';
 }
@@ -127,9 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
   startCountdown();
 });
 
-// Configuración de todos los event listeners que necesitamos
 function initEventListeners() {
-  // ----------- Vista centrada: Botón “Buscar” ----------- 
+  // Vista centrada: Botón “Buscar”
   searchBtnCS.addEventListener('click', () => {
     const query = searchInputCS.value.trim();
     if (!query) {
@@ -138,17 +132,14 @@ function initEventListeners() {
     }
     doSearchFromCenter(query);
   });
-  // Buscar con Enter
   searchInputCS.addEventListener('keyup', e => {
     if (e.key === 'Enter') searchBtnCS.click();
   });
-
-  // Vista centrada: Toggle Historial
   toggleHistoryBtnCS.addEventListener('click', () => {
     historyContainer.parentElement.classList.toggle('closed');
   });
 
-  // ----------- Header superior: Botón “Buscar” ----------- 
+  // Header superior: Botón “Buscar”
   searchBtnTop.addEventListener('click', () => {
     const query = searchInputTop.value.trim();
     if (!query) {
@@ -161,7 +152,7 @@ function initEventListeners() {
     if (e.key === 'Enter') searchBtnTop.click();
   });
 
-  // ----------- Botón “Mostrar Resultados” ----------- 
+  // Botón “Mostrar Resultados”
   toggleResultsBtn.addEventListener('click', () => {
     if (!resultsDiv) return;
     if (resultsDiv.style.display === 'none' || resultsDiv.style.display === '') {
@@ -173,12 +164,12 @@ function initEventListeners() {
     }
   });
 
-  // ----------- Botón “Historial” en header (móvil) ----------- 
+  // Botón “Historial” en header (móvil)
   toggleHistoryBtnTop.addEventListener('click', () => {
     historyContainer.parentElement.classList.toggle('closed');
   });
 
-  // ----------- Botón “Reproducir Cola” ----------- 
+  // Botón “Reproducir Cola”
   playQueueBtn.addEventListener('click', () => {
     if (!isPlaying && queue.length > 0) {
       isPlaying = true;
@@ -190,7 +181,7 @@ function initEventListeners() {
     }
   });
 
-  // ----------- Botón “Detener Todo” ----------- 
+  // Botón “Detener Todo”
   stopBtn.addEventListener('click', () => {
     if (isPlaying) {
       isPlaying = false;
@@ -204,26 +195,22 @@ function initEventListeners() {
       stopBtn.disabled = true;
       statusDiv.textContent = 'Estado: detenido';
       document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
+      stopCountdown();
     }
   });
 }
 
 // ======================= 5) MANEJO DE BÚSQUEDAS =======================
-// Esta función se dispara cuando buscas desde el bloque centrado
 function doSearchFromCenter(query) {
-  // 1) Ocultar vista centrada
   hideCenteredSearch();
-  // 2) Mostrar header y resultados (ocultando reproductor)
   showHeader();
   hidePlayerWrapper();
   hideResults();
-  // 3) Actualizar estado y buscar en YouTube
   statusDiv.textContent = `🔍 Buscando "${query}"…`;
   showSearchingIndicator();
   searchOnYouTube(query);
 }
 
-// Esta función se dispara cuando buscas desde el header
 function doSearch(query) {
   hidePlayerWrapper();
   hideResults();
@@ -233,7 +220,6 @@ function doSearch(query) {
 }
 
 // ======================= 6) YouTube IFrame API =======================
-// Esta función la invoca la propia API de YouTube una vez que carga el <script>
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('youtubePlayer', {
     height: '360',
@@ -248,26 +234,29 @@ function onYouTubeIframeAPIReady() {
       iv_load_policy: 3
     },
     events: {
-      onReady: () => { isPlayerReady = true; },
+      onReady: () => {
+        isPlayerReady = true;
+        // Ejecutar todas las acciones pendientes
+        while (pendingActions.length > 0) {
+          const fn = pendingActions.shift();
+          fn();
+        }
+      },
       onStateChange: onPlayerStateChange
     }
   });
 }
 
-// Detecta cuando el video actual termina
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.ENDED) {
-    // Si todavía hay más en la cola, sigue con el siguiente
     if (isPlaying && queue.length > 0) {
       loadNextInQueue();
       return;
     }
-    // Si la cola se vacía pero seguimos en "play mode", hacemos autoplay related
     if (isPlaying && queue.length === 0 && lastVideoId) {
       fetchAndPlayRelated(lastVideoId);
       return;
     }
-    // Si ya no hay nada más, detenemos
     if (isPlaying && queue.length === 0 && !lastVideoId) {
       isPlaying = false;
       playQueueBtn.disabled = false;
@@ -308,6 +297,7 @@ function searchOnYouTube(query) {
         // Crear tarjeta de resultado
         const card = document.createElement('div');
         card.className = 'result-item';
+        card.setAttribute('data-videoid', videoId);
         card.innerHTML = `
           <img class="result-thumb" src="${thumbnail}" alt="Miniatura">
           <div class="result-info">
@@ -340,22 +330,27 @@ function searchOnYouTube(query) {
 
 // ======================= 8) VISTA PREVIEW DE VIDEO =======================
 function previewVideo(videoId, title) {
-  if (!isPlayerReady) {
-    alert('El reproductor aún no está listo, inténtalo en unos segundos.');
-    return;
-  }
-  showPlayerWrapper();
-  player.mute();
-  player.loadVideoById({ videoId, suggestedQuality: 'default' });
-  player.playVideo();
-  setTimeout(() => {
-    player.unMute();
-    player.setVolume(100);
-  }, 200);
+  const doIt = () => {
+    player.mute();
+    player.loadVideoById({ videoId, suggestedQuality: 'default' });
+    player.playVideo();
+    setTimeout(() => {
+      player.unMute();
+      player.setVolume(100);
+    }, 200);
 
-  statusDiv.textContent = `🔎 Vista previa: ${title}`;
-  stopBtn.disabled = false;
-  // NO se agrega a la cola ni al historial en preview
+    statusDiv.textContent = `🔎 Vista previa: ${title}`;
+    stopBtn.disabled = false;
+    // Programar cuña
+    scheduleNextCuna();
+    // NO se agrega a la cola ni al historial en preview
+  };
+
+  if (!isPlayerReady) {
+    pendingActions.push(doIt);
+  } else {
+    doIt();
+  }
 }
 
 // ======================= 9) GESTIÓN DE LA COLA =======================
@@ -368,9 +363,17 @@ function addToQueue(videoId, title) {
   renderQueue();
   statusDiv.textContent = `📝 Video agregado a la cola: "${title}".`;
 
+  // Marcar con borde verde la tarjeta de resultados
+  const card = resultsDiv.querySelector(`.result-item[data-videoid="${videoId}"]`);
+  if (card) {
+    card.classList.add('in-queue');
+    const btnAdd = card.querySelector('.result-add-btn');
+    btnAdd.disabled = true;
+    btnAdd.style.opacity = '0.5';
+  }
+
   if (queue.length === 1) {
     playQueueBtn.disabled = false;
-    // Si aún estamos en la vista centrada, cambiar a header
     hideCenteredSearch();
     showHeader();
   }
@@ -447,6 +450,16 @@ function removeFromQueue(idx) {
   if (queue.length === 0) {
     playQueueBtn.disabled = true;
   }
+
+  // Quitar borde verde de la tarjeta de resultados
+  const card = resultsDiv.querySelector(`.result-item[data-videoid="${removed.videoId}"]`);
+  if (card) {
+    card.classList.remove('in-queue');
+    const btnAdd = card.querySelector('.result-add-btn');
+    btnAdd.disabled = false;
+    btnAdd.style.opacity = '1';
+  }
+
   if (removed.videoId === lastVideoId) {
     if (player && isPlayerReady) player.stopVideo();
     isPlaying = false;
@@ -459,33 +472,40 @@ function removeFromQueue(idx) {
 
 function playFromQueue(idx) {
   const { videoId, title } = queue[idx];
+  const doIt = () => {
+    document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
+
+    isPlaying = true;
+    lastVideoId = videoId;
+    player.mute();
+    player.loadVideoById({ videoId, suggestedQuality: 'default' });
+    player.playVideo();
+
+    setTimeout(() => {
+      player.unMute();
+      player.setVolume(100);
+    }, 200);
+
+    statusDiv.textContent = `▶️ Reproduciendo: ${title}`;
+    stopBtn.disabled = false;
+    playQueueBtn.disabled = true;
+
+    const items = queueContainer.querySelectorAll('.queue-item');
+    if (items[idx]) items[idx].classList.add('active');
+
+    addToHistory(videoId, title);
+    showPlayerWrapper();
+    hideResults();
+
+    // Programar la siguiente cuña
+    scheduleNextCuna();
+  };
+
   if (!isPlayerReady) {
-    alert('El reproductor no está listo, inténtalo en unos segundos.');
-    return;
+    pendingActions.push(doIt);
+  } else {
+    doIt();
   }
-  document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
-
-  isPlaying = true;
-  lastVideoId = videoId;
-  player.mute();
-  player.loadVideoById({ videoId, suggestedQuality: 'default' });
-  player.playVideo();
-
-  setTimeout(() => {
-    player.unMute();
-    player.setVolume(100);
-  }, 200);
-
-  statusDiv.textContent = `▶️ Reproduciendo: ${title}`;
-  stopBtn.disabled = false;
-  playQueueBtn.disabled = true;
-
-  const items = queueContainer.querySelectorAll('.queue-item');
-  if (items[idx]) items[idx].classList.add('active');
-
-  addToHistory(videoId, title);
-  showPlayerWrapper();
-  hideResults();
 }
 
 function loadNextInQueue() {
@@ -559,27 +579,33 @@ function renderHistory() {
 
 function playFromHistory(idx) {
   const { videoId, title } = historyList[idx];
-  if (!isPlayerReady) {
-    alert('El reproductor no está listo, inténtalo en unos segundos.');
-    return;
-  }
-  player.mute();
-  player.loadVideoById({ videoId, suggestedQuality: 'default' });
-  player.playVideo();
-  setTimeout(() => {
-    player.unMute();
-    player.setVolume(100);
-  }, 200);
+  const doIt = () => {
+    player.mute();
+    player.loadVideoById({ videoId, suggestedQuality: 'default' });
+    player.playVideo();
+    setTimeout(() => {
+      player.unMute();
+      player.setVolume(100);
+    }, 200);
 
-  statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
-  stopBtn.disabled = false;
-  playQueueBtn.disabled = true;
-  isPlaying = true;
-  lastVideoId = videoId;
-  addToHistory(videoId, title);
-  scheduleNextCuna();
-  showPlayerWrapper();
-  hideResults();
+    statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
+    stopBtn.disabled = false;
+    playQueueBtn.disabled = true;
+    isPlaying = true;
+    lastVideoId = videoId;
+    addToHistory(videoId, title);
+    showPlayerWrapper();
+    hideResults();
+
+    // Programar la siguiente cuña
+    scheduleNextCuna();
+  };
+
+  if (!isPlayerReady) {
+    pendingActions.push(doIt);
+  } else {
+    doIt();
+  }
 }
 
 function saveHistoryToCache() {
@@ -676,22 +702,30 @@ function fetchAndPlayRelated(videoId) {
         const newVideoId = data.items[0].id.videoId;
         const newTitle   = data.items[0].snippet.title || 'Video Relacionado';
 
-        lastVideoId = newVideoId;
-        player.mute();
-        player.loadVideoById({ videoId: newVideoId, suggestedQuality: 'default' });
-        player.playVideo();
+        const doIt = () => {
+          lastVideoId = newVideoId;
+          player.mute();
+          player.loadVideoById({ videoId: newVideoId, suggestedQuality: 'default' });
+          player.playVideo();
 
-        statusDiv.textContent = `▶️ Reproduciendo relacionado: ${newTitle}`;
-        playQueueBtn.disabled = true;
-        stopBtn.disabled = false;
+          statusDiv.textContent = `▶️ Reproduciendo relacionado: ${newTitle}`;
+          playQueueBtn.disabled = true;
+          stopBtn.disabled = false;
 
-        setTimeout(() => {
-          player.unMute();
-          player.setVolume(100);
-        }, 200);
+          setTimeout(() => {
+            player.unMute();
+            player.setVolume(100);
+          }, 200);
 
-        addToHistory(newVideoId, newTitle);
-        scheduleNextCuna();
+          addToHistory(newVideoId, newTitle);
+          scheduleNextCuna();
+        };
+
+        if (!isPlayerReady) {
+          pendingActions.push(doIt);
+        } else {
+          doIt();
+        }
       } else {
         statusDiv.textContent = '❌ No se encontró ningún video relacionado. Fin de reproducción.';
         isPlaying = false;
@@ -740,20 +774,12 @@ function stopCountdown() {
 }
 
 // ======================= 14) FADE DE VOLUMEN =======================
-/**
- * fadeVolume(player, from, to, duration, callback)
- *   - player: instancia de YT.Player
- *   - from: volumen inicial (0-100)
- *   - to: volumen final (0-100)
- *   - duration: tiempo total del fade en ms
- *   - callback: función a llamar cuando termine el fade
- */
 function fadeVolume(player, from, to, duration, callback) {
   if (!player || !isPlayerReady) {
     if (typeof callback === 'function') callback();
     return;
   }
-  const stepTime = 100; // cada 100 ms
+  const stepTime = 100;
   const steps = Math.ceil(duration / stepTime);
   const volStep = (to - from) / steps;
   let currentVol = from;
