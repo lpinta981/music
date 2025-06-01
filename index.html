@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MusicApp – Buscador, Cola, Historial y Cuñas</title>
+  <title>MusicApp – Buscador + Cola + Historial + Cuñas</title>
 
   <!-- =============================== ESTILOS =============================== -->
   <style>
@@ -41,11 +41,7 @@
       border-right: 1px solid #ddd;
       display: flex;
       flex-direction: column;
-      transition: transform 0.3s ease;
       z-index: 100;
-    }
-    #sidebar.closed {
-      transform: translateX(-100%);
     }
     #sidebar header {
       background-color: #001f3f;
@@ -53,8 +49,8 @@
       padding: 16px;
       font-size: 1.1rem;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
     }
     #sidebar header button {
       background: transparent;
@@ -173,9 +169,39 @@
       position: relative;
     }
 
-    /* ---- Header: buscador ---- */
-    #header {
+    /* ---- Vista “centrada” (solo buscador) ---- */
+    #centeredSearch {
+      flex: 1;
       display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f0f2f5;
+      flex-direction: column;
+    }
+    #centeredSearch input {
+      width: 60%;
+      max-width: 400px;
+      padding: 10px 14px;
+      font-size: 1.1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #centeredSearch button {
+      margin-top: 12px;
+      padding: 10px 16px;
+      background-color: #001f3f;
+      color: white;
+      border-radius: 4px;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    #centeredSearch button:hover {
+      background-color: #003366;
+    }
+
+    /* ---- Header superior (aparece tras buscar o en reproducción) ---- */
+    #header {
+      display: none; /* Se mostrará cuando sea necesario */
       align-items: center;
       background-color: #ffffff;
       padding: 12px 16px;
@@ -251,7 +277,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 12px;
-      display: none; /* Se mostrará al alternar resultados */
+      display: none; /* Se mostrará tras la búsqueda */
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
       display: grid;
@@ -340,10 +366,11 @@
 
 <div id="app">
   <!-- ==================== SIDEBAR (Cola + Historial) ==================== -->
-  <aside id="sidebar" class="closed">
+  <aside id="sidebar">
     <header>
       <span>Menú</span>
-      <button id="closeSidebarBtn" title="Cerrar menú">✕</button>
+      <!-- En esta versión el sidebar siempre está abierto; no tiene botón de cerrar -->
+      <button id="closeSidebarBtn" style="visibility:hidden;">✕</button>
     </header>
     <div class="content">
       <!-- Cola de reproducción -->
@@ -351,27 +378,35 @@
         <div class="section-title">
           Cola de reproduc. <span id="queueCount">(0)</span>
         </div>
-        <!-- Aquí inyectamos .queue-item -->
+        <!-- Aquí se inyectan .queue-item -->
       </div>
       <button id="playQueueBtn" disabled>▶️ Reproducir Cola</button>
 
       <!-- Historial -->
       <div id="history">
         <div class="section-title">Historial (últimos 30)</div>
-        <!-- Aquí inyectamos .history-item -->
+        <!-- Aquí se inyectan .history-item -->
       </div>
     </div>
   </aside>
 
   <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
   <div id="main">
-    <!-- Header con buscador y toggles -->
-    <div id="header">
-      <button id="openSidebarBtn" title="Abrir menú">☰</button>
+    <!-- Vista centrada: solo buscador, aparece si no hay cola ni reproducción ni resultados -->
+    <div id="centeredSearch">
       <input type="text" id="searchInput" placeholder="Buscar en YouTube..." />
       <button id="searchBtn">Buscar</button>
+      <div style="margin-top:8px;">
+        <button id="toggleHistoryBtn">🕑 Historial</button>
+      </div>
+    </div>
+
+    <!-- Header con buscador y botones (se muestra tras la primera búsqueda o reproducción) -->
+    <div id="header">
+      <input type="text" id="searchInputTop" placeholder="Buscar en YouTube..." />
+      <button id="searchBtnTop">Buscar</button>
       <button id="toggleResultsBtn">Mostrar Resultados</button>
-      <button id="toggleHistoryBtn" title="Mostrar/Ocultar historial">🕑 Historial</button>
+      <button id="toggleHistoryBtnTop">🕑 Historial</button>
       <div id="searchingIndicator">🔄 Buscando…</div>
     </div>
 
