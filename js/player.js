@@ -9,13 +9,12 @@ const YOUTUBE_API_KEY = 'AIzaSyCT6oq7Y-KcHEGLM4TusqoppYiGzxYgX9s';
 // 2) Variables globales
 ///////////////////////////////////////
 let player;                  // Instancia del reproductor de YouTube
-let isPlaying = false;       // ¿Está reproduciendo la cola (o autoplay)?
+let isPlaying = false;       // ¿Está reproduciendo la cola o autoplay?
 let queue = [];              // Cola de reproducción: array de { videoId, title }
 let randomTimerId = null;    // ID de setTimeout para la siguiente cuña
 let cunaAudio = null;        // <audio> de la cuña que esté sonando
-let lastVideoId = null;      // <-- Guardo aquí el último video que se reprodujo
+let lastVideoId = null;      // ID del último video que se reprodujo (para related)
 
-// Lista de cuñas (asegúrate de subir estos mp3 en assets/cunas/)
 const cunas = [
   'assets/cunas/cuna1.mp3',
   'assets/cunas/cuna2.mp3',
@@ -23,11 +22,11 @@ const cunas = [
 ];
 
 // Intervalos (ms) aleatorios entre 30 s y 5 min
-const MIN_INTERVAL = 30 * 1000;       //  30 segundos
-const MAX_INTERVAL = 5 * 60 * 1000;   // 300 segundos = 5 minutos
+const MIN_INTERVAL = 30 * 1000;       //  30 000 ms
+const MAX_INTERVAL = 5 * 60 * 1000;   // 300 000 ms
 
 ///////////////////////////////////////
-// 3) YouTube IFrame API invoca esta función
+// 3) Esta función la invoca la IFrame API de YouTube
 ///////////////////////////////////////
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('youtube-player', {
@@ -35,12 +34,12 @@ function onYouTubeIframeAPIReady() {
     width: '560',
     videoId: '', 
     playerVars: {
-      autoplay: 0,        // empezamos sin autoplay, para que no suene al cargar la página
+      autoplay: 0,       // No reproducir al cargar la página
       controls: 1,
       modestbranding: 1,
-      rel: 1,             // necesario para que relatedToVideoId funcione
+      rel: 1,            // Permite relatedToVideoId funcionar
       origin: window.location.origin,
-      iv_load_policy: 3   // desactiva las tarjetas de video relacionadas de YouTube
+      iv_load_policy: 3  // Desactiva anotaciones y tarjetas
     },
     events: {
       onReady: onPlayerReady,
@@ -80,7 +79,7 @@ function onPlayerReady(event) {
       startBtn.disabled = true;
       stopBtn.disabled = false;
       statusDiv.textContent = '▶️ Reproduciendo cola…';
-      loadNextInQueue();  // Carga el primer video
+      loadNextInQueue();   // Carga el primer video
       scheduleNextCuna();  // Arranca las cuñas intercaladas
     }
   });
@@ -105,31 +104,35 @@ function onPlayerReady(event) {
 function onPlayerStateChange(event) {
   // Si el video actual finalizó:
   if (event.data === YT.PlayerState.ENDED) {
-    // 1) Guardar el video que terminó (si aún no estaba en lastVideoId)
-    if (!lastVideoId) {
-      lastVideoId = player.getVideoData().video_id;
-    }
-    // 2) Si la cola NO está vacía, reproducir siguiente:
+    // 1) Si aún hay videos en la cola, reproducir el siguiente
     if (isPlaying && queue.length > 0) {
       loadNextInQueue();
+      return;
     }
-    // 3) Si la cola está vacía pero seguimos en “play mode”, buscamos relacionado:
-    else if (isPlaying && queue.length === 0) {
+    // 2) Si la cola está vacía pero seguimos en modo “play”, buscamos relacionado
+    if (isPlaying && queue.length === 0 && lastVideoId) {
       fetchAndPlayRelated(lastVideoId);
+      return;
     }
-    // 4) Si no hay reproducción activa, no hacemos nada.
+    // 3) Si no hay más cola y no podemos buscar relacionado, detenemos
+    if (isPlaying && queue.length === 0 && !lastVideoId) {
+      isPlaying = false;
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('stop-btn').disabled = true;
+      document.getElementById('status').textContent =
+        '✅ No hay más videos en cola. Agrega uno o busca de nuevo.';
+    }
   }
 }
 
 ///////////////////////////////////////
-// 6) Buscar videos en YouTube (Data API v3)
+// 6) Buscar videos en YouTube (YouTube Data API v3)
 ///////////////////////////////////////
 function searchOnYouTube(query) {
   const statusDiv = document.getElementById('status');
   const resultsDiv = document.getElementById('results');
   resultsDiv.innerHTML = ''; // Limpiar resultados previos
 
-  // Construir URL de búsqueda
   const encodedQuery = encodeURIComponent(query);
   const url =
     'https://www.googleapis.com/youtube/v3/search' +
@@ -141,7 +144,7 @@ function searchOnYouTube(query) {
 
   fetch(url)
     .then((response) => {
-      if (!response.ok) throw new Error('Error en YouTube Data API');
+      if (!response.ok) throw new Error(`YouTube Data API: ${response.status}`);
       return response.json();
     })
     .then((data) => {
@@ -152,8 +155,8 @@ function searchOnYouTube(query) {
       statusDiv.textContent = `✅ Resultados para "${query}":`;
 
       data.items.forEach((item) => {
-        const videoId = item.id.videoId;
-        const title = item.snippet.title;
+        const videoId   = item.id.videoId;
+        const title     = item.snippet.title;
         const thumbnail = item.snippet.thumbnails.medium.url;
 
         const container = document.createElement('div');
@@ -199,43 +202,48 @@ function loadNextInQueue() {
   const statusDiv = document.getElementById('status');
 
   if (queue.length === 0) {
-    // ------------- COLA VACÍA: hacemos autoplay de un video relacionado -------------
-    fetchAndPlayRelated(lastVideoId);
+    // Si la cola ya está vacía, intentamos hacer autoplay de un related
+    if (lastVideoId) {
+      fetchAndPlayRelated(lastVideoId);
+    } else {
+      // No hay lastVideoId → no podemos buscar relacionado
+      isPlaying = false;
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('stop-btn').disabled = true;
+      statusDiv.textContent = '✅ La cola terminó. Agrega más videos o busca de nuevo.';
+    }
     return;
   }
 
-  // ------------- Hay videos en la cola: reproducir el siguiente -------------
+  // Tomamos el siguiente de la cola
   const next = queue.shift();
   const { videoId, title } = next;
 
-  // Guardamos el ID que vamos a reproducir, para “related” futuro:
+  // Guardamos el ID para la próxima búsqueda de related
   lastVideoId = videoId;
 
-  // 1) MUTE temporal para que el navegador permita el autoplay
+  // Para sortear la política de autoplay de navegadores, primero muteamos
   player.mute();
 
-  // 2) Cargar el video y asegurar autoplay
+  // Cargar el video
   player.loadVideoById({
     videoId: videoId,
-    // Autoplay: si lo cargamos con loadVideoById + playVideo, nos aseguramos
-    // la continuidad, pero ponemos sugerencia aquí:
     suggestedQuality: 'default'
   });
 
-  // 3) Llamar a playVideo() justo después de loadVideoById
+  // Llamamos a playVideo() inmediatamente
   player.playVideo();
 
-  // 4) Mostramos estado y desmutear con un pequeño delay (200ms)
+  // Mostramos estado
   statusDiv.textContent = `▶️ Reproduciendo: ${title} (Quedan ${queue.length})`;
 
-  // 5) Después de un breve lapso (para forzar al navegador a darle “tiempo” a iniciar),
-  //    podemos restaurar el volumen completo:
+  // Tras un breve lapso, desmuteamos y fijamos volumen al 100%
   setTimeout(() => {
     player.unMute();
     player.setVolume(100);
   }, 200);
 
-  // 6) Programar la siguiente cuña como siempre:
+  // Programar la siguiente cuña
   scheduleNextCuna();
 }
 
@@ -270,7 +278,7 @@ function playCuna() {
   cunaAudio.volume = 1.0; // 100% de la cuña
   cunaAudio.play();
 
-  // Cuando la cuña termina, restaurar volumen y agendar siguiente
+  // Cuando la cuña termine, restaurar volumen y agendar la siguiente cuña
   cunaAudio.addEventListener('ended', () => {
     if (!isPlaying) return;
     player.setVolume(100);
@@ -278,7 +286,7 @@ function playCuna() {
     scheduleNextCuna();
   });
 
-  // En caso de error con la cuña, restaurar y continuar
+  // En caso de error, restaurar volumen y continuar
   cunaAudio.addEventListener('error', () => {
     if (!isPlaying) return;
     player.setVolume(100);
@@ -292,6 +300,16 @@ function playCuna() {
 ///////////////////////////////////////
 function fetchAndPlayRelated(videoId) {
   const statusDiv = document.getElementById('status');
+
+  // Si no tenemos videoId válido, abortamos
+  if (!videoId) {
+    isPlaying = false;
+    document.getElementById('start-btn').disabled = false;
+    document.getElementById('stop-btn').disabled = true;
+    statusDiv.textContent = '❌ No hay video previo para buscar relacionado.';
+    return;
+  }
+
   const url =
     'https://www.googleapis.com/youtube/v3/search' +
     '?part=snippet' +
@@ -305,7 +323,7 @@ function fetchAndPlayRelated(videoId) {
   fetch(url)
     .then((response) => {
       if (!response.ok) {
-        throw new Error('Error en YouTube Data API (related)');
+        throw new Error(`YouTube Data API (related): ${response.status}`);
       }
       return response.json();
     })
@@ -316,36 +334,34 @@ function fetchAndPlayRelated(videoId) {
         data.items[0].id.videoId
       ) {
         const newVideoId = data.items[0].id.videoId;
-        const newTitle = data.items[0].snippet.title || 'Video Relacionado';
+        const newTitle   = data.items[0].snippet.title || 'Video Relacionado';
 
-        // 1) Guardar ID para la siguiente búsqueda related
+        // Guardamos el nuevo videoId para la próxima búsqueda related
         lastVideoId = newVideoId;
 
-        // 2) MUTE para permitir autoplay
+        // Mute temporal para sortear restricción de autoplay
         player.mute();
 
-        // 3) Cargar el video nuevo y reproducir
+        // Cargar el video relacionado
         player.loadVideoById({
           videoId: newVideoId,
           suggestedQuality: 'default'
         });
+
+        // Reproducirlo inmediatamente
         player.playVideo();
 
         statusDiv.textContent = `▶️ Reproduciendo relacionado: ${newTitle}`;
 
-        // 4) Desmutear tras 200 ms
+        // Desmutear tras un breve lapso
         setTimeout(() => {
           player.unMute();
           player.setVolume(100);
         }, 200);
 
-        // 5) (Opcional) Si quieres, podrías añadirlo a la cola:
-        // queue.push({ videoId: newVideoId, title: newTitle });
-
-        // 6) Programar la siguiente cuña
+        // Programar la siguiente cuña
         scheduleNextCuna();
       } else {
-        // Si no hay relacionado, paramos todo
         statusDiv.textContent =
           '❌ No se encontró ningún video relacionado. Fin de reproducción.';
         isPlaying = false;
@@ -361,4 +377,3 @@ function fetchAndPlayRelated(videoId) {
       document.getElementById('stop-btn').disabled = true;
     });
 }
-
