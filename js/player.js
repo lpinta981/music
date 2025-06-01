@@ -708,7 +708,7 @@ const source = audioCtx.createMediaElementSource(cunaAudio);
 
 // 2) Crear un GainNode y fijar ganancia mayor a 1 (ej. 2 → 200%)
 const gainNode = audioCtx.createGain();
-gainNode.gain.value = 2;  // duplica el volumen de la cuña
+gainNode.gain.value = 2.5;  // duplica el volumen de la cuña
 
 // 3) Conectar: source → gainNode → destino del AudioContext
 source.connect(gainNode);
