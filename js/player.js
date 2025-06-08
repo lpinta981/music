@@ -402,37 +402,33 @@ function searchOnYouTube(query) {
 
 // ======================= 9) VISTA PREVIEW DE VIDEO =======================
  function previewVideo(videoId, title) {
-   const doIt = () => {
--    player.mute();
--    player.loadVideoById({ videoId, suggestedQuality: 'default' });
--    player.playVideo();
-+    // ① Muestro el player y oculto la lista de resultados
-+    hideResults();
-+    showPlayerWrapper();
-+
-+    // ② Cargo y reproduzco
-+    player.mute();
-+    player.loadVideoById({ videoId, suggestedQuality: 'default' });
-+    player.playVideo();
+  const doIt = () => {
+    // ① Muestro el player y oculto la lista de resultados
+    hideResults();
+    showPlayerWrapper();
+
+    // ② Cargo y reproduzco
+    player.mute();
+    player.loadVideoById({ videoId, suggestedQuality: 'default' });
+    player.playVideo();
 
     setTimeout(() => {
       player.unMute();
-      player.setVolume(55); // Reanudar a 75%
+      player.setVolume(55);
     }, 200);
 
     statusDiv.textContent = `🔎 Vista previa: ${title}`;
     stopBtn.disabled = false;
-    // Programar cuña
     scheduleNextCuna();
-    // NO se agrega a la cola ni al historial en preview
-   };
+  };
 
-   if (!isPlayerReady) {
-     pendingActions.push(doIt);
-   } else {
-     doIt();
-   }
- }
+  if (!isPlayerReady) {
+    pendingActions.push(doIt);
+  } else {
+    doIt();
+  }
+}
+
 
 
 // ======================= 10) GESTIÓN DE LA COLA =======================
