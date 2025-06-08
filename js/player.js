@@ -640,33 +640,41 @@ function playFromHistory(idx) {
   const { videoId, title } = historyList[idx];
 
   const doIt = () => {
-    // Limpiar clases 'active' tanto en cola como en historial
+    // ———– 1) Añadimos el vídeo seleccionado al frente de la cola ———–
+    // Evitamos duplicados: si ya existe, lo movemos al frente
+    queue = queue.filter(item => item.videoId !== videoId);
+    queue.unshift({ videoId, title });
+    renderQueue();
+
+    // ———– 2) Limpiamos clases 'active' en cola e historial ———–
     document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
 
-    // Marcar este ítem del historial como activo
+    // ———– 3) Marcamos en historial visualmente ———–
     const items = historyContainer.querySelectorAll('.history-item');
     if (items[idx]) items[idx].classList.add('active');
 
+    // ———– 4) Reproducimos el vídeo ———–
+    isPlaying = true;
+    lastVideoId = videoId;
     player.mute();
     player.loadVideoById({ videoId, suggestedQuality: 'default' });
     player.playVideo();
 
     setTimeout(() => {
       player.unMute();
-      player.setVolume(55); // Al reproducir desde historial, volumen 75%
+      player.setVolume(55); // Volumen por defecto 75%
     }, 200);
 
-    statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
+    statusDiv.textContent = `▶️ Reproduciendo historial (agregado a cola): ${title}`;
     stopBtn.disabled = false;
     playQueueBtn.disabled = true;
-    isPlaying = true;
-    lastVideoId = videoId;
 
     showPlayerWrapper();
     hideResults();
 
-    // Programar la siguiente cuña
+    // ———– 5) Añadimos al historial de reproducción y programamos cuña ———–
+    addToHistory(videoId, title);
     scheduleNextCuna();
   };
 
