@@ -195,16 +195,21 @@ function initEventListeners() {
   });
 
   // Botón “Reproducir Cola”
-  playQueueBtn.addEventListener('click', () => {
-    if (!isPlaying && queue.length > 0) {
-      isPlaying = true;
-      playQueueBtn.disabled = true;
-      statusDiv.textContent = '▶️ Reproduciendo cola…';
-      showPlayerWrapper();
-      loadNextInQueue();
-      scheduleNextCuna();
-    }
-  });
+playQueueBtn.addEventListener('click', () => {
+  if (!isPlaying && queue.length > 0) {
+    // ←––––– AÑADE ESTAS DOS LÍNEAS –––––→
+    isPlayingHistory = false;
+    historyIndex      = null;
+
+    isPlaying = true;
+    playQueueBtn.disabled = true;
+    statusDiv.textContent  = '▶️ Reproduciendo cola…';
+    showPlayerWrapper();
+    loadNextInQueue();
+    scheduleNextCuna();
+  }
+});
+
 
   // Botón “Detener Todo”
   stopBtn.addEventListener('click', () => {
@@ -282,50 +287,53 @@ function onYouTubeIframeAPIReady() {
 
 // Detecta cuando el video actual termina
 function onPlayerStateChange(event) {
-  if (event.data === YT.PlayerState.ENDED) {
+  if (event.data !== YT.PlayerState.ENDED) return;
 
-    // 1) Si estamos reproduciendo historial...
-    if (isPlayingHistory) {
-      // Hay un siguiente en el array?
-      if (historyIndex < historyList.length - 1) {
-        historyIndex++;
-        const { videoId, title } = historyList[historyIndex];
-        // limpiar marcas activas
-        document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
-        const items = historyContainer.querySelectorAll('.history-item');
-        if (items[historyIndex]) items[historyIndex].classList.add('active');
+  // 1) Modo Historial: avanzamos al siguiente en historyList
+  if (isPlayingHistory) {
+    if (historyIndex < historyList.length - 1) {
+      historyIndex++;
+      const { videoId, title } = historyList[historyIndex];
 
-        // reproducir siguiente historial
-        lastVideoId = videoId;
-        player.loadVideoById({ videoId, suggestedQuality: 'default' });
-        player.playVideo();
-        statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
-        addToHistory(videoId, title);
-        scheduleNextCuna();
-      } else {
-        // fin de historial
-        isPlayingHistory = false;
-        stopBtn.disabled = true;
-        statusDiv.textContent = '✅ Fin del historial.';
-      }
-      return;
+      // Actualizar marcador activo en el DOM
+      document.querySelectorAll('.history-item.active')
+              .forEach(el => el.classList.remove('active'));
+      const items = historyContainer.querySelectorAll('.history-item');
+      if (items[historyIndex]) items[historyIndex].classList.add('active');
+
+      // Reproducir siguiente del historial
+      lastVideoId = videoId;
+      player.loadVideoById({ videoId, suggestedQuality: 'default' });
+      player.playVideo();
+      statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
+      addToHistory(videoId, title);
+      scheduleNextCuna();
+    } else {
+      // Llegamos al final del historial
+      isPlayingHistory = false;
+      stopBtn.disabled  = true;
+      statusDiv.textContent = '✅ Fin del historial.';
     }
+    return;
+  }
 
-    // 2) Si estamos en modo cola normal...
-    if (isPlaying && queue.length > 0) {
+  // 2) Modo Cola: reproducir siguiente en queue
+  if (isPlaying) {
+    if (queue.length > 0) {
       loadNextInQueue();
-      return;
-    }
-    if (isPlaying && queue.length === 0 && lastVideoId) {
-      fetchAndPlayRelated(lastVideoId);
-      return;
-    }
-    if (isPlaying && queue.length === 0 && !lastVideoId) {
-      isPlaying = false;
+    } else {
+      // Fin de la cola
+      isPlaying        = false;
       playQueueBtn.disabled = false;
-      stopBtn.disabled = true;
-      statusDiv.textContent = '✅ Cola vacía. Agrega nuevos videos.';
+      stopBtn.disabled      = true;
+      statusDiv.textContent = '✅ Cola vacía.';
     }
+    return;
+  }
+
+  // 3) (Opcional) Autoplay “related” si no estamos ni en historial ni en cola
+  if (lastVideoId) {
+    fetchAndPlayRelated(lastVideoId);
   }
 }
 
