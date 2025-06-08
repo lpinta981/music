@@ -763,11 +763,10 @@ function scheduleNextCuna() {
   stopCountdown();
   clearTimeout(randomTimerId);
 
-  // Si no hay cuñas cargadas, no programamos nada
-  if (cunas.length === 0) {
-    return;
-  }
-  if (!isPlaying) return;
+  if (cunas.length === 0) return;
+  // antes: if (!isPlaying) return;
+  // ahora:
+  if (!isPlaying && !isPlayingHistory) return;
 
   const intervalo = getRandomInterval();
   startCountdown(intervalo);
@@ -776,6 +775,7 @@ function scheduleNextCuna() {
     playCuna();
   }, intervalo);
 }
+
 
 function playCuna() {
   if (!isPlaying) return;
