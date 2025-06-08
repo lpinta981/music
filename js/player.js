@@ -17,6 +17,9 @@ let lastVideoId = null;       // ID del último video reproducido (para Related)
 
 let historyList = [];         // Lista de últimos 30 reproducidos: { videoId, title, timestamp }
 const pendingActions = [];    // Cola para acciones pendientes de reproducción
+let isPlayingHistory = false;   // indica si estamos reproduciendo desde el historial
+let historyIndex = null;        // índice actual en historyList
+
 
 // Intervalos aleatorios en milisegundos (30 s – 5 min)
 const MIN_INTERVAL = 30 * 1000;       // 30 segundos en milisegundos
@@ -280,6 +283,35 @@ function onYouTubeIframeAPIReady() {
 // Detecta cuando el video actual termina
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.ENDED) {
+
+    // 1) Si estamos reproduciendo historial...
+    if (isPlayingHistory) {
+      // Hay un siguiente en el array?
+      if (historyIndex < historyList.length - 1) {
+        historyIndex++;
+        const { videoId, title } = historyList[historyIndex];
+        // limpiar marcas activas
+        document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
+        const items = historyContainer.querySelectorAll('.history-item');
+        if (items[historyIndex]) items[historyIndex].classList.add('active');
+
+        // reproducir siguiente historial
+        lastVideoId = videoId;
+        player.loadVideoById({ videoId, suggestedQuality: 'default' });
+        player.playVideo();
+        statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
+        addToHistory(videoId, title);
+        scheduleNextCuna();
+      } else {
+        // fin de historial
+        isPlayingHistory = false;
+        stopBtn.disabled = true;
+        statusDiv.textContent = '✅ Fin del historial.';
+      }
+      return;
+    }
+
+    // 2) Si estamos en modo cola normal...
     if (isPlaying && queue.length > 0) {
       loadNextInQueue();
       return;
@@ -296,6 +328,7 @@ function onPlayerStateChange(event) {
     }
   }
 }
+
 
 // ======================= 8) BÚSQUEDA EN YOUTUBE =======================
 function searchOnYouTube(query) {
@@ -640,40 +673,38 @@ function playFromHistory(idx) {
   const { videoId, title } = historyList[idx];
 
   const doIt = () => {
-    // ———– 1) Añadimos el vídeo seleccionado al frente de la cola ———–
-    // Evitamos duplicados: si ya existe, lo movemos al frente
-    queue = queue.filter(item => item.videoId !== videoId);
-    queue.unshift({ videoId, title });
-    renderQueue();
+    // Desactivar cola normal
+    isPlaying = false;
+    playQueueBtn.disabled = false;
 
-    // ———– 2) Limpiamos clases 'active' en cola e historial ———–
+    // Activar historial como cola propia
+    isPlayingHistory = true;
+    historyIndex = idx;
+
+    // Limpieza de states visuales
     document.querySelectorAll('.queue-item.active').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.history-item.active').forEach(el => el.classList.remove('active'));
 
-    // ———– 3) Marcamos en historial visualmente ———–
+    // Marcar el elemento actual
     const items = historyContainer.querySelectorAll('.history-item');
     if (items[idx]) items[idx].classList.add('active');
 
-    // ———– 4) Reproducimos el vídeo ———–
-    isPlaying = true;
+    // Reproducir
     lastVideoId = videoId;
     player.mute();
     player.loadVideoById({ videoId, suggestedQuality: 'default' });
     player.playVideo();
-
     setTimeout(() => {
       player.unMute();
-      player.setVolume(55); // Volumen por defecto 75%
+      player.setVolume(55);
     }, 200);
 
-    statusDiv.textContent = `▶️ Reproduciendo historial (agregado a cola): ${title}`;
+    statusDiv.textContent = `▶️ Reproduciendo historial: ${title}`;
     stopBtn.disabled = false;
-    playQueueBtn.disabled = true;
 
     showPlayerWrapper();
     hideResults();
 
-    // ———– 5) Añadimos al historial de reproducción y programamos cuña ———–
     addToHistory(videoId, title);
     scheduleNextCuna();
   };
@@ -684,6 +715,7 @@ function playFromHistory(idx) {
     doIt();
   }
 }
+
 
 function saveHistoryToCache() {
   try {
